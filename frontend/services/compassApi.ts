@@ -30,13 +30,16 @@ export async function startSession(sessionId: string): Promise<SessionResponse> 
   return post('/session/start', { session_id: sessionId });
 }
 
-/** Push canvas snapshot to the Accountant agent for financial analysis. */
+/** Push canvas snapshot to the Accountant agent for financial analysis.
+ *  `segments` carries the direct-cost linkage map so the Scout agent can
+ *  understand which parts of the business are most scalable for expansion. */
 export async function syncCanvas(
   sessionId: string,
   nodes: unknown[],
-  edges: unknown[]
+  edges: unknown[],
+  segments: unknown[] = []
 ): Promise<CanvasSyncResponse> {
-  return post('/sandbox/sync', { session_id: sessionId, nodes, edges });
+  return post('/sandbox/sync', { session_id: sessionId, nodes, edges, segments });
 }
 
 /** Ask the Scout agent to rank expansion locations. */

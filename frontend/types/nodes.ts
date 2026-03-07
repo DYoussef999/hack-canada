@@ -2,24 +2,32 @@ import type { Node } from 'reactflow';
 
 export type NodeCategory = 'Staff' | 'Overhead' | 'OpEx';
 
+/** The four smart group buckets */
+export type GroupCategory = 'revenue' | 'fixed' | 'variable' | 'labor';
+
 export interface SourceNodeData {
   label: string;
   value: number;
-  /** Future: cluster ID for AI-generated node groupings (CSV/Sheets import) */
   groupId?: string;
+  /** true when user has dragged this node out of its group for What-If analysis */
+  isolated?: boolean;
 }
 
 export interface ExpenseNodeData {
   label: string;
   value: number;
   category: NodeCategory;
-  /**
-   * Future (What-If mode): when true, value is a delta modifier applied to
-   * connected revenue rather than an absolute cost.
-   * TODO: implement delta mode in useFinancialCalculation
-   */
   isDelta?: boolean;
   groupId?: string;
+  isolated?: boolean;
+}
+
+export interface GroupNodeData {
+  label: string;
+  groupCategory: GroupCategory;
+  collapsed: boolean;
+  /** Border / accent colour class applied to the header */
+  colorClass: string;
 }
 
 export interface FinancialResult {
@@ -28,23 +36,30 @@ export interface FinancialResult {
   netProfit: number;
 }
 
+/** Data stored on every edge; used to distinguish general vs. direct-cost flows. */
+export interface EdgeFlowData {
+  edgeType: 'direct-cost' | 'general';
+}
+
+/** One segment = one revenue node/group plus its directly-linked expenses. */
+export interface SegmentResult {
+  id: string;
+  label: string;
+  revenue: number;
+  directCosts: number;
+  grossMargin: number;
+  grossMarginPct: number;
+  linkedExpenses: Array<{ label: string; value: number }>;
+}
+
 export interface ResultNodeData {
-  /**
-   * Optional callback for external consumers.
-   * Used by the ElevenLabs Voice Guide to read results aloud.
-   */
   onResultUpdate?: (result: FinancialResult) => void;
 }
 
-export type SourceFlowNode = Node<SourceNodeData, 'source'>;
+export type SourceFlowNode  = Node<SourceNodeData,  'source'>;
 export type ExpenseFlowNode = Node<ExpenseNodeData, 'expense'>;
-export type ResultFlowNode = Node<ResultNodeData, 'result'>;
+export type ResultFlowNode  = Node<ResultNodeData,  'result'>;
+export type GroupFlowNode   = Node<GroupNodeData,   'group'>;
 
-/** Union of all financial node types used in the graph */
 export type FinancialNode = SourceFlowNode | ExpenseFlowNode | ResultFlowNode;
-
-/**
- * Common node data union — used to type useNodesState so the canvas can
- * hold a mixed array of Source, Expense, and Result nodes without type errors.
- */
-export type AnyNodeData = SourceNodeData | ExpenseNodeData | ResultNodeData;
+export type AnyNodeData   = SourceNodeData | ExpenseNodeData | ResultNodeData | GroupNodeData;
