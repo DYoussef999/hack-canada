@@ -1,6 +1,6 @@
 'use client';
 
-import { TrendingUp, ArrowDownCircle, Info } from 'lucide-react';
+import { TrendingUp, ArrowDownCircle, Info, FileSpreadsheet } from 'lucide-react';
 
 interface PaletteItemProps {
   label: string;
@@ -33,12 +33,16 @@ function PaletteItem({ label, description, nodeType, icon, borderClass, bgClass 
   );
 }
 
+interface SidebarProps {
+  onImportClick: () => void;
+}
+
 /**
  * Sidebar — the node palette panel.
  * Users drag items from here onto the React Flow canvas to spawn new nodes.
  * Uses the native HTML5 drag-and-drop API — no external DnD library needed.
  */
-export default function Sidebar() {
+export default function Sidebar({ onImportClick }: SidebarProps) {
   return (
     <aside className="w-56 bg-zinc-900 border-r border-zinc-800 flex flex-col p-4 gap-6 shrink-0 z-10">
       <div>
@@ -66,11 +70,28 @@ export default function Sidebar() {
         </div>
       </div>
 
+      {/* Import CSV */}
+      <div>
+        <h2 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">
+          Import
+        </h2>
+        <button
+          onClick={onImportClick}
+          className="w-full flex items-center gap-3 p-3 rounded-lg border-2 border-blue-900 bg-blue-950 hover:brightness-110 transition-all text-left"
+        >
+          <FileSpreadsheet className="w-4 h-4 text-blue-400 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-zinc-100 leading-tight">Import CSV</p>
+            <p className="text-xs text-zinc-500 mt-0.5 leading-tight">Paste spreadsheet data</p>
+          </div>
+        </button>
+      </div>
+
       <div className="mt-auto flex gap-2 p-3 rounded-lg bg-zinc-800 border border-zinc-700">
         <Info className="w-3.5 h-3.5 text-zinc-500 shrink-0 mt-0.5" />
         <p className="text-[11px] text-zinc-500 leading-relaxed">
-          Drag nodes onto the canvas, then draw a line to the{' '}
-          <span className="text-yellow-600 font-medium">Net Profit</span> card to see your bottom line update live.
+          Drag nodes onto the canvas. The{' '}
+          <span className="text-blue-400 font-medium">Financials</span> panel on the right updates instantly.
         </p>
       </div>
     </aside>

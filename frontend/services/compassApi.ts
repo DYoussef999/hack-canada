@@ -1,0 +1,62 @@
+/**
+ * compassApi.ts — typed fetch wrapper for the Compass AI backend.
+ * All methods throw on non-2xx responses with the backend's detail message.
+ */
+
+import type {
+  SessionResponse,
+  CanvasSyncResponse,
+  ExpansionResponse,
+  ImportSheetsResponse,
+} from '@/types/api';
+
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail ?? `Request failed (${res.status})`);
+  }
+  return res.json() as Promise<T>;
+}
+
+/** Create or resume a Backboard thread pair for this session. */
+export async function startSession(sessionId: string): Promise<SessionResponse> {
+  return post('/session/start', { session_id: sessionId });
+}
+
+/** Push canvas snapshot to the Accountant agent for financial analysis. */
+export async function syncCanvas(
+  sessionId: string,
+  nodes: unknown[],
+  edges: unknown[]
+): Promise<CanvasSyncResponse> {
+  return post('/sandbox/sync', { session_id: sessionId, nodes, edges });
+}
+
+/** Ask the Scout agent to rank expansion locations. */
+export async function optimizeExpansion(
+  sessionId: string,
+  targetCities: string[],
+  businessType: string,
+  deepAnalysis: boolean
+): Promise<ExpansionResponse> {
+  return post('/optimize/expansion', {
+    session_id: sessionId,
+    target_cities: targetCities,
+    business_type: businessType,
+    deep_analysis: deepAnalysis,
+  });
+}
+
+/** Convert raw CSV rows into React Flow nodes via LLM. */
+export async function importSheets(
+  rows: Record<string, string>[]
+): Promise<ImportSheetsResponse> {
+  return post('/import/sheets', { rows });
+}

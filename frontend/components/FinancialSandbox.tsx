@@ -1,21 +1,6 @@
-/*
-<!-- ARCHITECTURE DECISION -->
-
-STATE: All node values live in React Flow's `useNodesState` (single source of truth).
-      Updating a node's value calls setNodes with an immutable map — no external store needed.
-
-REACTIVITY: ResultNode calls `useNodes()` + `useEdges()` (React Flow context hooks) directly
-      inside the node component, then passes them to `useFinancialCalculation` (useMemo).
-      This means ResultNode self-subscribes to graph changes with zero prop-drilling —
-      no sync useEffect needed in the parent.
-
-NODE REGISTRY: `nodeTypes` is a stable object defined OUTSIDE the component so React Flow
-      never re-registers types on re-render. Adding a new node type = one line in this object.
-*/
-
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import ReactFlow, {
   Background,
   BackgroundVariant,
@@ -34,44 +19,107 @@ import 'reactflow/dist/style.css';
 
 import SourceNode from '@/components/nodes/SourceNode';
 import ExpenseNode from '@/components/nodes/ExpenseNode';
-import ResultNode from '@/components/nodes/ResultNode';
 import Sidebar from '@/components/Sidebar';
-import { createSourceNode, createExpenseNode, createResultNode } from '@/utils/nodeFactory';
+import SummarySidebar from '@/components/SummarySidebar';
+import ImportModal from '@/components/ImportModal';
+import { createSourceNode, createExpenseNode } from '@/utils/nodeFactory';
+import { useCanvasFinancials } from '@/hooks/useCanvasFinancials';
+import { useSession } from '@/hooks/useSession';
+import { syncCanvas } from '@/services/compassApi';
 import type { AnyNodeData } from '@/types/nodes';
+import type { AccountantAnalysis, SyncStatus } from '@/types/api';
 
-/** Stable registry — add a new node type here without touching any other file */
+const SYNC_DEBOUNCE_MS = 1500;
+
 const nodeTypes: NodeTypes = {
   source: SourceNode,
   expense: ExpenseNode,
-  result: ResultNode,
 };
 
-// Typed as Node<AnyNodeData>[] so useNodesState can hold mixed source/expense/result nodes
-const DEFAULT_NODES: Node<AnyNodeData>[] = [createResultNode({ x: 680, y: 180 })];
+const CANVAS_STORAGE_KEY = 'compass_canvas';
+
+const DEFAULT_NODES: Node<AnyNodeData>[] = [
+  { id: 'demo-src-1', type: 'source',  position: { x: 160, y: 100 }, data: { label: 'Monthly Sales', value: 8500 } },
+  { id: 'demo-exp-1', type: 'expense', position: { x: 160, y: 260 }, data: { label: 'Rent',          value: 2500, category: 'Overhead' } },
+  { id: 'demo-exp-2', type: 'expense', position: { x: 160, y: 390 }, data: { label: 'Staff Wages',   value: 3200, category: 'Staff' } },
+];
 const DEFAULT_EDGES: Edge[] = [];
+
+function loadCanvas(): { nodes: Node<AnyNodeData>[]; edges: Edge[] } {
+  try {
+    const saved = localStorage.getItem(CANVAS_STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.nodes?.length) return { nodes: parsed.nodes, edges: parsed.edges ?? [] };
+    }
+  } catch { /* ignore corrupt storage */ }
+  return { nodes: DEFAULT_NODES, edges: DEFAULT_EDGES };
+}
 
 const miniMapColor = (node: Node): string => {
   if (node.type === 'source') return '#22c55e';
   if (node.type === 'expense') return '#ef4444';
-  return '#facc15';
+  return '#71717a';
 };
 
 const edgeStrokeForSource = (nodes: Node[], sourceId: string): string => {
   const src = nodes.find((n) => n.id === sourceId);
   if (src?.type === 'source') return '#22c55e';
   if (src?.type === 'expense') return '#ef4444';
-  return '#facc15';
+  return '#71717a';
 };
 
-/**
- * FinancialSandbox — the main canvas orchestrator for Compass AI.
- * Manages node/edge state and wires drag-and-drop node creation from the Sidebar.
- */
 export default function FinancialSandbox() {
-  const [nodes, setNodes, onNodesChange] = useNodesState<AnyNodeData>(DEFAULT_NODES);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(DEFAULT_EDGES);
-  const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
+  const initial = loadCanvas();
+  const [nodes, setNodes, onNodesChange] = useNodesState<AnyNodeData>(initial.nodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initial.edges);
+  const [rfInstance, setRfInstance]      = useState<ReactFlowInstance | null>(null);
+  const [showImport, setShowImport]      = useState(false);
 
+  // Auto-save canvas to localStorage on every change
+  useEffect(() => {
+    localStorage.setItem(CANVAS_STORAGE_KEY, JSON.stringify({ nodes, edges }));
+  }, [nodes, edges]);
+
+  // AI state
+  const [aiAnalysis, setAiAnalysis]   = useState<AccountantAnalysis | null>(null);
+  const [syncStatus, setSyncStatus]   = useState<SyncStatus>('idle');
+  const syncTimerRef                  = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Session (localStorage UUID → /session/start)
+  const { sessionId, error: sessionError } = useSession();
+
+  // Derived financials (pure client-side, always fast)
+  const financials = useCanvasFinancials(nodes);
+
+  // When backend is unreachable on session init, mark error once
+  useEffect(() => {
+    if (sessionError) setSyncStatus('error');
+  }, [sessionError]);
+
+  // Debounced canvas sync → /sandbox/sync → Accountant analysis
+  useEffect(() => {
+    if (!sessionId || syncStatus === 'error') return;
+
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(async () => {
+      setSyncStatus('syncing');
+      try {
+        const result = await syncCanvas(sessionId, nodes as unknown[], edges as unknown[]);
+        setAiAnalysis(result.analysis);
+        setSyncStatus('synced');
+      } catch {
+        setSyncStatus('error');
+      }
+    }, SYNC_DEBOUNCE_MS);
+
+    return () => {
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes, sessionId]);
+
+  // Canvas event handlers
   const onConnect = useCallback(
     (connection: Connection) => {
       setEdges((eds) =>
@@ -80,10 +128,7 @@ export default function FinancialSandbox() {
             ...connection,
             animated: true,
             type: 'smoothstep',
-            style: {
-              stroke: edgeStrokeForSource(nodes, connection.source ?? ''),
-              strokeWidth: 2,
-            },
+            style: { stroke: edgeStrokeForSource(nodes, connection.source ?? ''), strokeWidth: 2 },
           },
           eds
         )
@@ -101,22 +146,34 @@ export default function FinancialSandbox() {
     (e: React.DragEvent) => {
       e.preventDefault();
       if (!rfInstance) return;
-
       const type = e.dataTransfer.getData('application/reactflow');
       if (!type) return;
-
       const position = rfInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
-      const newNode =
-        type === 'source' ? createSourceNode(position) : createExpenseNode(position);
-
-      setNodes((nds) => nds.concat(newNode));
+      setNodes((nds) =>
+        nds.concat(type === 'source' ? createSourceNode(position) : createExpenseNode(position))
+      );
     },
     [rfInstance, setNodes]
   );
 
+  // Called by ImportModal after successful /import/sheets
+  const handleImport = useCallback(
+    (importedNodes: Node<AnyNodeData>[], importedEdges: unknown[]) => {
+      // Offset imported nodes so they don't stack on top of existing ones
+      const offset = { x: 500, y: 100 };
+      const positioned = importedNodes.map((n, i) => ({
+        ...n,
+        position: { x: offset.x + (i % 2) * 220, y: offset.y + Math.floor(i / 2) * 130 },
+      }));
+      setNodes((nds) => nds.concat(positioned));
+      setEdges((eds) => eds.concat(importedEdges as Edge[]));
+    },
+    [setNodes, setEdges]
+  );
+
   return (
     <div className="flex h-full bg-zinc-950">
-      <Sidebar />
+      <Sidebar onImportClick={() => setShowImport(true)} />
 
       <div className="flex-1 h-full" onDrop={onDrop} onDragOver={onDragOver}>
         <ReactFlow
@@ -128,7 +185,7 @@ export default function FinancialSandbox() {
           onInit={setRfInstance}
           nodeTypes={nodeTypes}
           fitView
-          fitViewOptions={{ padding: 0.3 }}
+          fitViewOptions={{ padding: 0.4 }}
           deleteKeyCode="Backspace"
         >
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#3f3f46" />
@@ -140,6 +197,20 @@ export default function FinancialSandbox() {
           />
         </ReactFlow>
       </div>
+
+      <SummarySidebar
+        financials={financials}
+        sessionId={sessionId}
+        aiAnalysis={aiAnalysis}
+        syncStatus={syncStatus}
+      />
+
+      {showImport && (
+        <ImportModal
+          onClose={() => setShowImport(false)}
+          onImport={handleImport}
+        />
+      )}
     </div>
   );
 }
