@@ -2,8 +2,8 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 
 export const metadata = {
-  title: "LaunchPad AI",
-  description: "Expansion Intelligence for Small Businesses",
+  title: "Compass AI",
+  description: "Visual Financial Sandbox for Canadian Small Business Owners",
 };
 
 export default function RootLayout({ children }) {

@@ -5,3 +5,8 @@
 body {
   @apply bg-gray-50 text-gray-900;
 }
+
+/* React Flow — override panel chrome to match dark canvas theme */
+.react-flow__attribution {
+  display: none;
+}
