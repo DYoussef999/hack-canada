@@ -33,7 +33,14 @@ export default function Navbar() {
       <div style={{ maxWidth: '1152px', margin: '0 auto', padding: '0 24px', height: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '100%' }}>
           {/* Logo */}
-          <Link href="/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none', flexShrink: 0 }}>
+          <Link href="/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', flexShrink: 0 }}>
+            <img
+              src="/logo.png"
+              alt="Ploutos"
+              width={26}
+              height={26}
+              style={{ display: 'block', borderRadius: '6px' }}
+            />
             <span style={{
               fontFamily: "'Playfair Display', serif",
               fontSize: '20px', fontWeight: '700',
