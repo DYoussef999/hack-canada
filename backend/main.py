@@ -32,6 +32,7 @@ from routes import sandbox as legacy_sandbox
 # New Gemini intelligence layer routers
 from routers import sync as sync_router
 from routers import optimize as optimize_router
+from routers import wire as wire_router
 
 # Health-check services
 from services import (
@@ -82,6 +83,7 @@ app.add_middleware(
 # ── New Gemini intelligence routes ────────────────────────────────────────────
 app.include_router(sync_router.router,     tags=["Accountant"])
 app.include_router(optimize_router.router, tags=["Scout"])
+app.include_router(wire_router.router,     tags=["Canvas"])
 
 # ── Location optimizer (map team) ────────────────────────────────────────────
 app.include_router(locations_route.router, tags=["Locations"])

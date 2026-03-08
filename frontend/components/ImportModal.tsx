@@ -21,17 +21,39 @@ const REVENUE_SIGNALS = new Set([
 
 /** Map category cell values → NodeCategory */
 const CATEGORY_MAP: Record<string, NodeCategory> = {
-  // Staff
-  staff: 'Staff', labor: 'Staff', labour: 'Staff', wages: 'Staff',
-  wage: 'Staff', salary: 'Staff', payroll: 'Staff', 'part-time': 'Staff',
-  // Overhead
-  overhead: 'Overhead', rent: 'Overhead', utilities: 'Overhead', utility: 'Overhead',
-  hydro: 'Overhead', insurance: 'Overhead', 'fixed cost': 'Overhead',
-  'fixed costs': 'Overhead', lease: 'Overhead', gas: 'Overhead', electric: 'Overhead',
-  // OpEx
-  opex: 'OpEx', marketing: 'OpEx', software: 'OpEx', inventory: 'OpEx',
-  supplies: 'OpEx', cogs: 'OpEx', 'cost of goods': 'OpEx', advertising: 'OpEx',
-  subscription: 'OpEx', equipment: 'OpEx', maintenance: 'OpEx',
+  // Staff & Labour
+  staff: 'Staff & Labour', labor: 'Staff & Labour', labour: 'Staff & Labour', wages: 'Staff & Labour',
+  wage: 'Staff & Labour', salary: 'Staff & Labour', payroll: 'Staff & Labour', 'part-time': 'Staff & Labour',
+  employee: 'Staff & Labour', employees: 'Staff & Labour', contractor: 'Staff & Labour',
+  // Physical Storefront / Compliance & Admin
+  rent: 'Physical Storefront', lease: 'Physical Storefront', storefront: 'Physical Storefront',
+  office: 'Compliance & Admin', utilities: 'Compliance & Admin', utility: 'Compliance & Admin',
+  hydro: 'Compliance & Admin', gas: 'Compliance & Admin', electric: 'Compliance & Admin',
+  insurance: 'Compliance & Admin', tax: 'Compliance & Admin',
+  // Inventory & Suppliers
+  inventory: 'Inventory & Suppliers', supplies: 'Inventory & Suppliers', cogs: 'Inventory & Suppliers',
+  'cost of goods': 'Inventory & Suppliers', stock: 'Inventory & Suppliers', materials: 'Inventory & Suppliers',
+  // Marketing & Acquisition
+  marketing: 'Marketing & Acquisition', advertising: 'Marketing & Acquisition', 'ad spend': 'Marketing & Acquisition',
+  ads: 'Marketing & Acquisition', social: 'Marketing & Acquisition', seo: 'Marketing & Acquisition',
+  // Delivery & Fulfillment
+  shipping: 'Delivery & Fulfillment', delivery: 'Delivery & Fulfillment', logistics: 'Delivery & Fulfillment',
+  courier: 'Delivery & Fulfillment', freight: 'Delivery & Fulfillment',
+  // E-Commerce & Online
+  ecommerce: 'E-Commerce & Online', online: 'E-Commerce & Online', website: 'E-Commerce & Online',
+  shopify: 'E-Commerce & Online', hosting: 'E-Commerce & Online', 'web hosting': 'E-Commerce & Online',
+  // Payments & Banking
+  payments: 'Payments & Banking', banking: 'Payments & Banking', fees: 'Payments & Banking',
+  'stripe fees': 'Payments & Banking', 'payment fees': 'Payments & Banking', processor: 'Payments & Banking',
+  // Marketplace
+  marketplace: 'Marketplace', amazon: 'Marketplace', ebay: 'Marketplace',
+  // Wholesale & B2B
+  b2b: 'Wholesale & B2B', supplier: 'Wholesale & B2B',
+  // Default / catch-all for old system
+  opex: 'Compliance & Admin', overhead: 'Compliance & Admin',
+  'fixed cost': 'Compliance & Admin', 'fixed costs': 'Compliance & Admin',
+  maintenance: 'Compliance & Admin', equipment: 'Compliance & Admin',
+  software: 'Compliance & Admin', subscription: 'Compliance & Admin', wholesale: 'Wholesale & B2B',
 };
 
 /** Frequency string → monthly multiplier */
@@ -63,7 +85,7 @@ function guessCategory(label: string, rawCat: string): NodeCategory {
   for (const w of words) {
     if (CATEGORY_MAP[w]) return CATEGORY_MAP[w];
   }
-  return 'OpEx';
+  return 'Compliance & Admin'; // Default fallback
 }
 
 function isRevenueRow(typeVal: string, categoryVal: string): boolean {

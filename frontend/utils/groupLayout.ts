@@ -40,15 +40,22 @@ export const BUCKET_CONFIG: Record<GroupCategory, BucketConfig> = {
 };
 
 const EXPENSE_CAT_TO_GROUP: Record<NodeCategory, GroupCategory> = {
-  Staff:    'labor',
-  Overhead: 'fixed',
-  OpEx:     'variable',
+  'Physical Storefront':     'fixed',
+  'E-Commerce & Online':     'fixed',
+  'Marketplace':             'variable',
+  'Wholesale & B2B':         'variable',
+  'Delivery & Fulfillment':  'variable',
+  'Staff & Labour':          'labor',
+  'Marketing & Acquisition': 'variable',
+  'Payments & Banking':      'variable',
+  'Compliance & Admin':      'fixed',
+  'Inventory & Suppliers':   'variable',
 };
 
 export function bucketForNode(node: Node<AnyNodeData>): GroupCategory {
   if (node.type === 'source') return 'revenue';
   if (node.type === 'expense') {
-    const cat = (node.data as { category?: NodeCategory }).category ?? 'OpEx';
+    const cat = (node.data as { category?: NodeCategory }).category ?? 'Compliance & Admin';
     return EXPENSE_CAT_TO_GROUP[cat];
   }
   return 'variable';

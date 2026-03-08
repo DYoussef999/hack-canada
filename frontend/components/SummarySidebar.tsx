@@ -15,9 +15,16 @@ const TABS: { id: TabId; label: string }[] = [
 ];
 
 const CATEGORY_META: Record<NodeCategory, { bar: string; badge: string; text: string }> = {
-  Staff:    { bar: 'bg-orange-500', badge: 'bg-orange-50 text-orange-600 border-orange-200', text: 'text-orange-600' },
-  Overhead: { bar: 'bg-violet-500', badge: 'bg-violet-50 text-violet-600 border-violet-200', text: 'text-violet-600' },
-  OpEx:     { bar: 'bg-rose-500',   badge: 'bg-rose-50   text-rose-600   border-rose-200',   text: 'text-rose-600'   },
+  'Physical Storefront':     { bar: 'bg-teal-500',     badge: 'bg-teal-50 text-teal-600 border-teal-200',           text: 'text-teal-600'     },
+  'E-Commerce & Online':     { bar: 'bg-blue-500',     badge: 'bg-blue-50 text-blue-600 border-blue-200',           text: 'text-blue-600'     },
+  'Marketplace':             { bar: 'bg-indigo-500',   badge: 'bg-indigo-50 text-indigo-600 border-indigo-200',     text: 'text-indigo-600'   },
+  'Wholesale & B2B':         { bar: 'bg-slate-500',    badge: 'bg-slate-50 text-slate-600 border-slate-200',        text: 'text-slate-600'    },
+  'Delivery & Fulfillment':  { bar: 'bg-amber-500',    badge: 'bg-amber-50 text-amber-600 border-amber-200',        text: 'text-amber-600'    },
+  'Staff & Labour':          { bar: 'bg-orange-500',   badge: 'bg-orange-50 text-orange-600 border-orange-200',     text: 'text-orange-600'   },
+  'Marketing & Acquisition': { bar: 'bg-pink-500',     badge: 'bg-pink-50 text-pink-600 border-pink-200',           text: 'text-pink-600'     },
+  'Payments & Banking':      { bar: 'bg-green-500',    badge: 'bg-green-50 text-green-600 border-green-200',        text: 'text-green-600'    },
+  'Compliance & Admin':      { bar: 'bg-purple-500',   badge: 'bg-purple-50 text-purple-600 border-purple-200',     text: 'text-purple-600'   },
+  'Inventory & Suppliers':   { bar: 'bg-yellow-500',   badge: 'bg-yellow-50 text-yellow-600 border-yellow-200',     text: 'text-yellow-600'   },
 };
 
 const fmtCAD = (v: number) =>
@@ -25,9 +32,13 @@ const fmtCAD = (v: number) =>
     style: 'currency', currency: 'CAD', maximumFractionDigits: 0,
   }).format(v);
 
-function CategoryBar({ category, value, total }: { category: NodeCategory; value: number; total: number }) {
+function CategoryBar({ category, value, total }: { category: string; value: number; total: number }) {
   const pct = total > 0 ? Math.max(2, Math.round((value / total) * 100)) : 0;
-  const meta = CATEGORY_META[category];
+  const meta = CATEGORY_META[category as NodeCategory];
+  
+  // Safety check: skip if category not in metadata
+  if (!meta) return null;
+  
   return (
     <div className="space-y-1">
       <div className="flex justify-between items-center">
@@ -97,7 +108,11 @@ function SegmentCard({ seg }: { seg: SegmentResult }) {
 
 function ExpenseRow({ item, total }: { item: ExpenseBreakdownItem; total: number }) {
   const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
-  const meta = CATEGORY_META[item.category];
+  const meta = CATEGORY_META[item.category as NodeCategory];
+  
+  // Safety check: skip if category not in metadata
+  if (!meta) return null;
+  
   return (
     <div className="flex items-center gap-2 py-1.5 last:border-0" style={{ borderBottom: '1px solid var(--forest-rim)' }}>
       <span className={`text-[9px] px-1.5 py-0.5 rounded border font-bold shrink-0 ${meta.badge}`}>
@@ -117,8 +132,11 @@ function FinancialsTab({ f, syncStatus }: { f: CanvasFinancials; syncStatus: Syn
   const isPositive = netProfit >= 0;
   const margin = revenue > 0 ? Math.round((netProfit / revenue) * 100) : 0;
 
-  const catTotals: Record<NodeCategory, number> = { Staff: 0, Overhead: 0, OpEx: 0 };
-  for (const item of expenseBreakdown) catTotals[item.category] += item.value;
+  // Build category totals from actual expense breakdown
+  const catTotals: Record<string, number> = {};
+  for (const item of expenseBreakdown) {
+    catTotals[item.category] = (catTotals[item.category] ?? 0) + item.value;
+  }
   const hasExpenses = totalExpenses > 0;
 
   return (
@@ -171,8 +189,8 @@ function FinancialsTab({ f, syncStatus }: { f: CanvasFinancials; syncStatus: Syn
           <p className="text-[10px] text-center py-4 italic" style={{ color: 'var(--moss)' }}>Add an expense node to see breakdown</p>
         ) : (
           <div className="space-y-3">
-            {(Object.keys(catTotals) as NodeCategory[])
-              .filter((cat) => catTotals[cat] > 0)
+            {(Object.keys(catTotals) as string[])
+              .filter((cat) => catTotals[cat] > 0 && cat in CATEGORY_META)
               .map((cat) => (
                 <CategoryBar key={cat} category={cat} value={catTotals[cat]} total={totalExpenses} />
               ))}

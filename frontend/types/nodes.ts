@@ -1,6 +1,16 @@
 import type { Node } from 'reactflow';
 
-export type NodeCategory = 'Staff' | 'Overhead' | 'OpEx';
+export type NodeCategory = 
+  | 'Physical Storefront'
+  | 'E-Commerce & Online'
+  | 'Marketplace'
+  | 'Wholesale & B2B'
+  | 'Delivery & Fulfillment'
+  | 'Staff & Labour'
+  | 'Marketing & Acquisition'
+  | 'Payments & Banking'
+  | 'Compliance & Admin'
+  | 'Inventory & Suppliers';
 
 /** The four smart group buckets */
 export type GroupCategory = 'revenue' | 'fixed' | 'variable' | 'labor';
@@ -8,6 +18,8 @@ export type GroupCategory = 'revenue' | 'fixed' | 'variable' | 'labor';
 export interface SourceNodeData {
   label: string;
   value: number;
+  isSelected?: boolean;
+  isConnected?: boolean;
   groupId?: string;
   isolated?: boolean;
   manualGroup?: boolean;
@@ -17,6 +29,8 @@ export interface ExpenseNodeData {
   label: string;
   value: number;
   category: NodeCategory;
+  isSelected?: boolean;
+  isConnected?: boolean;
   isDelta?: boolean;
   groupId?: string;
   isolated?: boolean;

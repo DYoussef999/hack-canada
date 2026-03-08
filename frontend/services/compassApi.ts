@@ -107,3 +107,32 @@ export async function optimizeLocations(
 ): Promise<GeminiExpansionReport> {
   return post('/optimize', { financial_report: financialReport, locations });
 }
+
+// ── Canvas auto-wiring ────────────────────────────────────────────────────────
+
+export interface NodeForWiring {
+  id: string;
+  label: string;
+  type: string;
+  category?: string | null;
+}
+
+export interface WireMapping {
+  source: string;
+  target: string;
+}
+
+export interface AutoWireResponse {
+  mappings: WireMapping[];
+}
+
+/** Use Gemini to auto-wire unconnected expenses to revenue streams. */
+export async function autoWireNodes(
+  revenueNodes: NodeForWiring[],
+  expenseNodes: NodeForWiring[]
+): Promise<AutoWireResponse> {
+  return post('/canvas/auto-wire', {
+    revenue_nodes: revenueNodes,
+    expense_nodes: expenseNodes,
+  });
+}

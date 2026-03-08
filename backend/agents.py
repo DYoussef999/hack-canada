@@ -79,6 +79,56 @@ You are a financial data parser. Convert raw spreadsheet rows into React Flow no
 Respond with ONLY valid JSON.
 """.strip()
 
+_WIRE_MATCHER_PROMPT = """
+You are The Wire Matcher — an expert in connecting business expenses to revenue streams.
+
+TASK: Match each unconnected expense to exactly ONE best-fit revenue stream.
+
+INPUT FORMAT:
+You receive JSON with:
+- revenue_nodes: [{{id: string, label: string}}, ...]
+- expense_nodes: [{{id: string, label: string, category: string}}, ...]
+
+OUTPUT FORMAT (CRITICAL - MUST BE VALID JSON):
+{{
+  "mappings": [
+    {{"source": "expense-id-1", "target": "revenue-id-A"}},
+    {{"source": "expense-id-2", "target": "revenue-id-B"}}
+  ]
+}}
+
+MATCHING RULES:
+1. Analyze each expense's label and category
+2. Find the revenue stream it most directly supports
+3. Use business logic:
+   - "Shipping/Delivery" expenses → "Product" or "Sales" revenue
+   - "Ads/Marketing" expenses → "Online" or largest revenue stream
+   - "Staff/Wages" → Any revenue stream (supports all operations)
+   - "Rent/Utilities" → Largest revenue stream
+   - Match by keywords when possible
+4. Each expense maps to exactly ONE revenue (never skip)
+5. If unsure, assign to largest revenue stream
+
+EXAMPLE MATCHING:
+Revenue: [
+  {{id: "rev-1", label: "Product Sales"}},
+  {{id: "rev-2", label: "Service Revenue"}}
+]
+Expenses: [
+  {{id: "exp-1", label: "Shipping Costs", category: "Delivery & Fulfillment"}},
+  {{id: "exp-2", label: "Staff Wages", category: "Staff & Labour"}}
+]
+Output:
+{{
+  "mappings": [
+    {{"source": "exp-1", "target": "rev-1"}},
+    {{"source": "exp-2", "target": "rev-1"}}
+  ]
+}}
+
+CRITICAL: Return ONLY the JSON object. No explanations, no markdown, no extra text.
+""".strip()
+
 
 # ── Tool call normalizer ─────────────────────────────────────────────────────────
 
@@ -101,27 +151,39 @@ _sessions:       dict[str, _Session] = {}
 _accountant_id:  str | None = None
 _scout_id:       str | None = None
 _ingestor_id:    str | None = None
+_wire_matcher_id: str | None = None
 
 
 # ── Startup initializer ──────────────────────────────────────────────────────────
 
 async def initialize_agents() -> None:
-    global _accountant_id, _scout_id, _ingestor_id
+    global _accountant_id, _scout_id, _ingestor_id, _wire_matcher_id
     existing = await _call(client.list_assistants)
     by_name  = {a.name: a for a in existing}
 
-    async def _get_or_create(name: str, prompt: str, tools=None) -> str:
-        if name in by_name:
+    async def _get_or_create(name: str, prompt: str, tools=None, force_recreate=False) -> str:
+        if name in by_name and not force_recreate:
             return str(by_name[name].assistant_id)
+        
+        # If force_recreate, delete the old one first
+        if name in by_name and force_recreate:
+            try:
+                await _call(client.delete_assistant, by_name[name].assistant_id)
+                log.info(f"initialize_agents: deleted old {name}")
+            except Exception as e:
+                log.warning(f"initialize_agents: failed to delete {name}: {e}")
+        
         kwargs = dict(name=name, system_prompt=prompt)
         if tools: kwargs["tools"] = tools
         a = await _call(client.create_assistant, **kwargs)
+        log.info(f"initialize_agents: created {name}")
         return str(a.assistant_id)
 
-    _accountant_id, _scout_id, _ingestor_id = await asyncio.gather(
+    _accountant_id, _scout_id, _ingestor_id, _wire_matcher_id = await asyncio.gather(
         _get_or_create("Ploutos-Accountant", _ACCOUNTANT_PROMPT),
         _get_or_create("Ploutos-Scout",      _SCOUT_PROMPT, tools=SCOUT_TOOLS),
         _get_or_create("Ploutos-Ingestor",   _INGESTOR_PROMPT),
+        _get_or_create("Ploutos-WireMatcher", _WIRE_MATCHER_PROMPT, force_recreate=True),
     )
 
 
@@ -227,6 +289,88 @@ async def ingest_sheet_rows(raw_rows: list[dict]) -> dict:
     finally:
         await _call(client.delete_thread, thread_id)
     return {"nodes": parsed.get("nodes", []), "edges": parsed.get("edges", [])}
+
+
+# ── Wire matcher ─────────────────────────────────────────────────────────────────
+
+async def auto_wire_nodes(revenue_nodes: list[dict], expense_nodes: list[dict]) -> dict:
+    """Use Wire Matcher agent through Backboard to connect expenses to revenue streams.
+    
+    Waits for full agent completion with no fallbacks. Longer wait times acceptable.
+    """
+    tmp_thread = await _call(client.create_thread, _wire_matcher_id)
+    thread_id  = str(tmp_thread.thread_id)
+    try:
+        prompt = f"""
+Revenue Streams:
+{json.dumps(revenue_nodes, indent=2)}
+
+Unconnected Expenses:
+{json.dumps(expense_nodes, indent=2)}
+
+Match each expense to the best revenue stream. All expenses must be matched.
+""".strip()
+        log.info(f"auto_wire_nodes: calling Backboard with {len(revenue_nodes)} revenue, {len(expense_nodes)} expenses")
+        
+        # Add message to thread (triggers agent processing)
+        response = await _call(
+            client.add_message,
+            thread_id=thread_id,
+            content=prompt,
+        )
+        
+        current_status = response.status if hasattr(response, 'status') else 'UNKNOWN'
+        log.info(f"auto_wire_nodes: initial response status = {current_status}")
+        
+        # If initial response is PENDING or PROCESSING, poll for completion
+        import asyncio
+        max_wait_seconds = 180  # 3 minutes
+        poll_interval = 1  # Check every 1 second
+        elapsed = 0
+        
+        # Keep polling until COMPLETED or timeout
+        while current_status != 'COMPLETED' and elapsed < max_wait_seconds:
+            await asyncio.sleep(poll_interval)
+            elapsed += poll_interval
+            
+            # Re-fetch the message to get updated status
+            # Since we can't directly get thread state, we check the response
+            # In Backboard, the response object should update if we wait
+            log.info(f"auto_wire_nodes: waiting for completion... ({elapsed}s elapsed)")
+            
+            # Try to get more recent response by re-adding a small marker
+            try:
+                refresh = await _call(
+                    client.add_message,
+                    thread_id=thread_id,
+                    content="[status check]",
+                )
+                current_status = refresh.status if hasattr(refresh, 'status') else current_status
+                response = refresh  # Use newest response
+            except:
+                pass  # If refresh fails, keep using current response
+        
+        # Extract content from the final response
+        content = response.content if hasattr(response, 'content') else str(response)
+        log.info(f"auto_wire_nodes: final status = {current_status}, extracting mappings...")
+        
+        parsed = _parse_json(content or "")
+        mappings = parsed.get("mappings", [])
+        log.info(f"auto_wire_nodes: ✓ extracted {len(mappings)} mappings from agent")
+        
+        if current_status == 'FAILED':
+            log.error(f"auto_wire_nodes: agent reported FAILED status: {content}")
+        
+        if not mappings:
+            log.warning(f"auto_wire_nodes: ⚠️ no mappings extracted from response. Content: {content[:500]}")
+        
+        return {"mappings": mappings}  # No fallback - return what we got
+        
+    finally:
+        try:
+            await _call(client.delete_thread, thread_id)
+        except Exception as e:
+            log.warning(f"auto_wire_nodes: failed to delete thread: {e}")
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────────

@@ -22,13 +22,14 @@ export function createSourceNode(
 
 export function createExpenseNode(
   position: { x: number; y: number },
-  groupId?: string
+  groupId?: string,
+  category?: NodeCategory
 ): ExpenseFlowNode {
   return {
     id: nextId(),
     type: 'expense',
     position,
-    data: { label: 'New Expense', value: 0, category: 'OpEx' as NodeCategory, groupId },
+    data: { label: 'New Expense', value: 0, category: category ?? 'Inventory & Suppliers' as NodeCategory, groupId },
   };
 }
 
