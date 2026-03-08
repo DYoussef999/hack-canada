@@ -2,8 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
+
+:root {
+  --forest:     #1a2e12;
+  --forest-mid: #f7f4ee;
+  --forest-rim: #ddd8cf;
+  --moss:       #3e6b2a;
+  --sage:       #3d8b24;
+  --cream:      #faf8f4;
+  --white:      #FFFFFF;
+  --amber:      #c49530;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
 body {
-  @apply bg-gray-50 text-gray-900;
+  background: var(--cream);
+  color: var(--forest);
 }
 
 /* React Flow — override panel chrome to match dark canvas theme */

@@ -1,19 +1,36 @@
 export default function MetricCard({ title, value, prefix = "", suffix = "", color = "blue" }) {
-  const colorMap = {
-    blue:   "text-blue-600 bg-blue-50",
-    green:  "text-green-600 bg-green-50",
-    red:    "text-red-500 bg-red-50",
-    purple: "text-purple-600 bg-purple-50",
-    orange: "text-orange-500 bg-orange-50",
+  const accentMap = {
+    blue:   "var(--sage)",
+    green:  "var(--sage)",
+    red:    "var(--amber)",
+    purple: "var(--sage)",
+    orange: "var(--amber)",
   };
-  const accent = colorMap[color] || colorMap.blue;
+  const accent = accentMap[color] || "var(--sage)";
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-      <p className="text-sm text-gray-500 font-medium mb-2">{title}</p>
-      <div className={`inline-block rounded-lg px-3 py-1 text-3xl font-extrabold ${accent}`}>
+    <div style={{
+      background: "var(--white)",
+      border: "1px solid var(--forest-rim)",
+      borderRadius: "14px",
+      padding: "24px",
+    }}>
+      <p style={{
+        fontSize: "12px", fontWeight: "600",
+        color: "var(--moss)", textTransform: "uppercase",
+        letterSpacing: "0.08em", marginBottom: "10px",
+        fontFamily: "'DM Sans', sans-serif",
+      }}>
+        {title}
+      </p>
+      <span style={{
+        display: "inline-block",
+        fontFamily: "'Playfair Display', serif",
+        fontSize: "32px", fontWeight: "700",
+        color: accent, lineHeight: 1,
+      }}>
         {prefix}{typeof value === "number" ? value.toLocaleString() : value}{suffix}
-      </div>
+      </span>
     </div>
   );
 }

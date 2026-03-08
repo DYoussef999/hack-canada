@@ -1,5 +1,5 @@
 {
-  "name": "launchpad-ai",
+  "name": "compass-ai",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@auth0/nextjs-auth0": "^3.8.0",
     "axios": "^1.7.0",
     "lucide-react": "^0.577.0",
     "mapbox-gl": "^3.19.1",
