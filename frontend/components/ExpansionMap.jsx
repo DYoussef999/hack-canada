@@ -4,8 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
-// ── Opportunity Locations ─────────────────────────────────────────────────────
-// Each location has its own hourly foot traffic so the heatmap follows them.
 const DEFAULT_RECOMMENDATIONS = [
   {
     id: 1, name: 'Uptown Waterloo', latitude: 43.4668, longitude: -80.5224,
@@ -34,44 +32,102 @@ const DEFAULT_RECOMMENDATIONS = [
 ];
 
 const HOURS = ['12a','1a','2a','3a','4a','5a','6a','7a','8a','9a','10a','11a','12p','1p','2p','3p','4p','5p','6p','7p','8p','9p','10p','11p'];
-const BUILDING_SIZE = 0.00022; // fallback square ~20m
+const BUILDING_SIZE = 0.00022;
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Score color helpers (5-bucket) ────────────────────────────────────────────
 function getScoreColor(score) {
-  if (score >= 75) return '#4ade80';   // muted green
-  if (score >= 50) return '#fbbf24';   // muted amber
-  return '#f87171';                    // muted red
+  if (score >= 80) return '#22c55e';
+  if (score >= 60) return '#a3e635';
+  if (score >= 40) return '#eab308';
+  if (score >= 20) return '#f97316';
+  return '#ef4444';
 }
 
 function getScoreBg(score) {
-  if (score >= 75) return 'rgba(74,222,128,0.1)';
-  if (score >= 50) return 'rgba(251,191,36,0.1)';
-  return 'rgba(248,113,113,0.1)';
+  if (score >= 80) return 'rgba(34,197,94,0.18)';
+  if (score >= 60) return 'rgba(163,230,53,0.18)';
+  if (score >= 40) return 'rgba(234,179,8,0.18)';
+  if (score >= 20) return 'rgba(249,115,22,0.18)';
+  return 'rgba(239,68,68,0.18)';
 }
 
 function getScoreLabel(score) {
-  if (score >= 75) return 'High';
-  if (score >= 50) return 'Medium';
-  return 'Low';
+  if (score >= 80) return 'Excellent';
+  if (score >= 60) return 'Good';
+  if (score >= 40) return 'Fair';
+  if (score >= 20) return 'Poor';
+  return 'Very Low';
 }
 
+// 5-tier traffic intensity: Very High → red, High → orange, Medium → yellow, Low → green, Very Low → blue-grey
 function getFootColor(busyness) {
-  if (busyness >= 80) return '#86efac';  // soft green
-  if (busyness >= 60) return '#6ee7b7';  // soft teal-green
-  if (busyness >= 40) return '#5eead4';  // teal
-  if (busyness >= 20) return '#67e8f9';  // cyan
-  return '#7dd3fc';                      // soft blue
+  if (busyness >= 80) return '#ef4444'; // Very High
+  if (busyness >= 60) return '#f97316'; // High
+  if (busyness >= 40) return '#eab308'; // Medium
+  if (busyness >= 20) return '#22c55e'; // Low
+  return '#94a3b8';                     // Very Low
 }
 
 function getTrafficLabel(busyness) {
-  if (busyness >= 80) return 'Peak';
-  if (busyness >= 60) return 'Busy';
-  if (busyness >= 40) return 'Moderate';
-  if (busyness >= 20) return 'Quiet';
-  return 'Very Quiet';
+  if (busyness >= 80) return 'Very High';
+  if (busyness >= 60) return 'High';
+  if (busyness >= 40) return 'Medium';
+  if (busyness >= 20) return 'Low';
+  return 'Very Low';
 }
 
-// Fallback square if queryRenderedFeatures finds no building at the coordinate
+// ── Foot traffic API ──────────────────────────────────────────────────────────
+/**
+ * Single entry point for all foot traffic data fetching.
+ * Designed to support both on-load initialisation and future search-triggered calls
+ * by accepting an optional location hint (area/city string) for dynamic lookups.
+ *
+ * @param {string} [locationHint] - Optional area for search-driven calls (future use)
+ * @returns {{ locations: Array, source: 'live'|'fallback' }}
+ */
+async function fetchFootTrafficData(locationHint) {
+  try {
+    const body = locationHint ? { location: locationHint } : {};
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/locations/search`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.status === 'ok' && data.locations?.length) {
+      return { locations: data.locations, source: data.data_source || 'live' };
+    }
+    throw new Error('Invalid response shape');
+  } catch (err) {
+    console.warn('BestTime API unavailable — using fallback traffic data', err);
+    return { locations: DEFAULT_RECOMMENDATIONS, source: 'fallback' };
+  }
+}
+
+function getProsCons(rec) {
+  const pros = [];
+  const cons = [];
+  if (rec.opportunity_score >= 80) pros.push('Exceptional location score');
+  else if (rec.opportunity_score >= 60) pros.push('Strong location score');
+  else if (rec.opportunity_score >= 40) pros.push('Moderate location appeal');
+  else cons.push('Below-average location score');
+
+  if (rec.projected_profit_margin >= 0.25) pros.push('High profit margin');
+  else if (rec.projected_profit_margin >= 0.18) pros.push('Healthy profit margin');
+  else cons.push('Slim profit margin');
+
+  if (rec.estimated_rent <= 2500) pros.push('Affordable rent');
+  else if (rec.estimated_rent >= 3500) cons.push('Higher rent commitment');
+
+  const peakTraffic = Math.max(...rec.hourly);
+  if (peakTraffic >= 75) pros.push('Strong foot traffic');
+  else if (peakTraffic >= 50) pros.push('Moderate foot traffic');
+  else cons.push('Limited foot traffic');
+
+  return { pros, cons };
+}
+
+// ── Map geometry helpers ───────────────────────────────────────────────────────
 function buildingSquare(lng, lat, size = BUILDING_SIZE) {
   return [
     [lng - size, lat - size],
@@ -86,9 +142,6 @@ function emptyGeoJSON() {
   return { type: 'FeatureCollection', features: [] };
 }
 
-// Expand every ring of a polygon outward from its centroid by `amount` degrees.
-// This makes the green extrusion sit just outside the grey building so they don't
-// directly overlap and the outline is clearly visible.
 function bufferPolygon(geometry, amount = 0.000015) {
   const expandRing = (ring) => {
     const cx = ring.reduce((s, c) => s + c[0], 0) / ring.length;
@@ -100,30 +153,18 @@ function bufferPolygon(geometry, amount = 0.000015) {
       return [x + (dx / len) * amount, y + (dy / len) * amount];
     });
   };
-
-  if (geometry.type === 'Polygon') {
-    return { ...geometry, coordinates: geometry.coordinates.map(expandRing) };
-  }
-  if (geometry.type === 'MultiPolygon') {
-    return { ...geometry, coordinates: geometry.coordinates.map((poly) => poly.map(expandRing)) };
-  }
+  if (geometry.type === 'Polygon') return { ...geometry, coordinates: geometry.coordinates.map(expandRing) };
+  if (geometry.type === 'MultiPolygon') return { ...geometry, coordinates: geometry.coordinates.map((p) => p.map(expandRing)) };
   return geometry;
 }
 
-// Build GeoJSON from a real OSM building feature, buffered outward so the green
-// extrusion sits just outside the grey building footprint
 function buildFromRealFeature(feature, height) {
   return {
     type: 'FeatureCollection',
-    features: [{
-      type: 'Feature',
-      properties: { height },
-      geometry: bufferPolygon(feature.geometry),
-    }],
+    features: [{ type: 'Feature', properties: { height }, geometry: bufferPolygon(feature.geometry) }],
   };
 }
 
-// Fallback: use a small square at the coordinate
 function buildFallbackGeoJSON(rec) {
   if (!rec) return emptyGeoJSON();
   return {
@@ -136,7 +177,6 @@ function buildFallbackGeoJSON(rec) {
   };
 }
 
-// GeoJSON for foot traffic heatmap — only uses the opportunity locations
 function buildHeatGeoJSON(recs, hour) {
   return {
     type: 'FeatureCollection',
@@ -148,34 +188,47 @@ function buildHeatGeoJSON(recs, hour) {
   };
 }
 
+// ── Donut Chart ───────────────────────────────────────────────────────────────
+function DonutChart({ score, color }) {
+  const r = 34;
+  const cx = 50;
+  const cy = 50;
+  const circumference = 2 * Math.PI * r;
+  const prosLength = (score / 100) * circumference;
+  return (
+    <svg viewBox="0 0 100 100" width={110} height={110}>
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e0dbd3" strokeWidth={13} />
+      <circle
+        cx={cx} cy={cy} r={r} fill="none"
+        stroke={color} strokeWidth={13}
+        strokeDasharray={`${prosLength} ${circumference - prosLength}`}
+        style={{ transform: 'rotate(-90deg)', transformOrigin: '50% 50%' }}
+      />
+      <text x="50" y="45" textAnchor="middle" fontSize="19" fontWeight="700" fill={color}
+        style={{ fontFamily: 'Inter,sans-serif' }}>{score}</text>
+      <text x="50" y="60" textAnchor="middle" fontSize="9" fill="#3e6b2a"
+        style={{ fontFamily: 'Inter,sans-serif' }}>/100</text>
+    </svg>
+  );
+}
+
+// ── Styles ────────────────────────────────────────────────────────────────────
 let stylesInjected = false;
 function injectStyles() {
   if (typeof window === 'undefined' || stylesInjected) return;
   stylesInjected = true;
   const style = document.createElement('style');
   style.textContent = `
-    .expansion-popup .mapboxgl-popup-content {
-      background: #e8e3db !important;
-      border: 1px solid #ddd8cf;
-      border-radius: 10px;
-      padding: 0;
-      box-shadow: 0 10px 30px rgba(26,46,18,0.12);
-    }
-    .expansion-popup .mapboxgl-popup-tip { border-top-color: #e8e3db !important; }
-    .expansion-popup .mapboxgl-popup-close-button {
-      color: #3e6b2a;
-      font-size: 18px;
-      padding: 6px 10px;
-      line-height: 1;
-      background: transparent;
-      border-radius: 0 10px 0 0;
-    }
-    .expansion-popup .mapboxgl-popup-close-button:hover {
-      color: #1a2e12;
-      background: rgba(26,46,18,0.06);
-    }
     .loc-card:hover { background: rgba(26,46,18,0.04) !important; }
-    .loc-card.active { background: rgba(61,139,36,0.08) !important; border-color: rgba(61,139,36,0.4) !important; }
+    @keyframes slideInRight {
+      from { transform: translateX(110%); opacity: 0; }
+      to   { transform: translateX(0);    opacity: 1; }
+    }
+    @keyframes spinLoader {
+      to { transform: rotate(360deg); }
+    }
+    .info-panel-enter { animation: slideInRight 0.38s cubic-bezier(0.34,1.4,0.64,1) forwards; }
+    .spin-loader { animation: spinLoader 0.85s linear infinite; }
   `;
   document.head.appendChild(style);
 }
@@ -184,9 +237,10 @@ function injectStyles() {
 export default function ExpansionMap() {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
-  const popupRef = useRef(null);
+  const moveEndRef = useRef(null);
 
   const [recommendations, setRecommendations] = useState(DEFAULT_RECOMMENDATIONS);
+  const [trafficDataSource, setTrafficDataSource] = useState('loading');
   const [selectedId, setSelectedId] = useState(null);
   const [heatmapVisible, setHeatmapVisible] = useState(true);
   const [currentHour, setCurrentHour] = useState(new Date().getHours());
@@ -200,8 +254,18 @@ export default function ExpansionMap() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [showSearch, setShowSearch] = useState(true);
+  const [searchCompleted, setSearchCompleted] = useState(false);
 
   const selectedRec = recommendations.find((r) => r.id === selectedId) || null;
+
+  // ── Load live foot traffic on mount ───────────────────────────────────────
+  useEffect(() => {
+    fetchFootTrafficData().then(({ locations, source }) => {
+      setRecommendations(locations);
+      setTrafficDataSource(source);
+      if (source === 'live') console.log('✓ BestTime API: live foot traffic data loaded');
+    });
+  }, []);
 
   // ── Init Map ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -225,7 +289,6 @@ export default function ExpansionMap() {
       const layers = map.getStyle().layers;
       const labelLayerId = layers.find((l) => l.type === 'symbol' && l.layout['text-field'])?.id;
 
-      // Dark city buildings
       map.addLayer({
         id: '3d-buildings',
         source: 'composite',
@@ -241,7 +304,6 @@ export default function ExpansionMap() {
         },
       }, labelLayerId);
 
-      // Foot traffic heatmap — tied to opportunity locations, stays visible at all zooms
       map.addSource('foot-heat', {
         type: 'geojson',
         data: buildHeatGeoJSON(DEFAULT_RECOMMENDATIONS, new Date().getHours()),
@@ -254,47 +316,37 @@ export default function ExpansionMap() {
         paint: {
           'heatmap-weight': ['interpolate', ['linear'], ['get', 'intensity'], 0, 0, 1, 1],
           'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 10, 1, 17, 2],
-          // Radius grows as you zoom in so it stays visible at street level
           'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 10, 20, 13, 40, 15, 25, 17, 18, 19, 14],
           'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.55, 15, 0.7, 19, 0.8],
           'heatmap-color': [
             'interpolate', ['linear'], ['heatmap-density'],
-            0,   'rgba(14,116,144,0)',
-            0.2, '#164e63',
-            0.4, '#0e7490',
-            0.6, '#0d9488',
-            0.8, '#059669',
-            1.0, '#16a34a',
+            0,   'rgba(148,163,184,0)', // Very Low - transparent
+            0.2, '#94a3b8',             // Very Low - blue-grey
+            0.4, '#22c55e',             // Low - green
+            0.6, '#eab308',             // Medium - yellow
+            0.8, '#f97316',             // High - orange
+            1.0, '#ef4444',             // Very High - red
           ],
         },
       });
 
-      // Selected building — starts empty, filled when user clicks a card
-      map.addSource('selected-building', {
-        type: 'geojson',
-        data: emptyGeoJSON(),
-      });
+      map.addSource('selected-building', { type: 'geojson', data: emptyGeoJSON() });
       map.addLayer({
         id: 'selected-extrusion',
         type: 'fill-extrusion',
         source: 'selected-building',
         paint: {
-          'fill-extrusion-color': '#2d6a4f',   // muted forest green
+          'fill-extrusion-color': '#22c55e',
           'fill-extrusion-height': ['get', 'height'],
           'fill-extrusion-base': 0,
-          'fill-extrusion-opacity': 0.75,
+          'fill-extrusion-opacity': 0.82,
         },
       });
-      // Soft green outline — traces the real building edge
       map.addLayer({
         id: 'selected-outline',
         type: 'line',
         source: 'selected-building',
-        paint: {
-          'line-color': '#4ade80',
-          'line-width': 2,
-          'line-opacity': 0.7,
-        },
+        paint: { 'line-color': '#22c55e', 'line-width': 2.5, 'line-opacity': 0.9 },
       });
     });
 
@@ -302,98 +354,54 @@ export default function ExpansionMap() {
     return () => { map.remove(); };
   }, []);
 
-  const moveEndRef = useRef(null);
-
-  // ── When a card is selected: fly + snap green outline to real building ──────
+  // ── Selected location: fly + color + building outline ─────────────────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
-
     const src = map.getSource('selected-building');
     if (!src) return;
 
-    // Always kill any in-flight moveend listener and popup first
-    if (moveEndRef.current) {
-      map.off('moveend', moveEndRef.current);
-      moveEndRef.current = null;
-    }
-    if (popupRef.current) { popupRef.current.remove(); popupRef.current = null; }
+    if (moveEndRef.current) { map.off('moveend', moveEndRef.current); moveEndRef.current = null; }
 
-    if (!selectedRec) {
-      src.setData(emptyGeoJSON());
-      return;
-    }
+    if (!selectedRec) { src.setData(emptyGeoJSON()); return; }
 
-    // Fly in first — building tiles need to be rendered before we can query them
-    map.flyTo({
-      center: [selectedRec.longitude, selectedRec.latitude],
-      zoom: 17,
-      pitch: 58,
-      bearing: -18,
-      duration: 1800,
-      essential: true,
-    });
+    // Update extrusion + outline color to match rating
+    const ratingColor = getScoreColor(selectedRec.opportunity_score);
+    if (map.getLayer('selected-extrusion')) map.setPaintProperty('selected-extrusion', 'fill-extrusion-color', ratingColor);
+    if (map.getLayer('selected-outline')) map.setPaintProperty('selected-outline', 'line-color', ratingColor);
 
-    // Capture selectedRec in closure so stale calls don't bleed across switches
+    map.flyTo({ center: [selectedRec.longitude, selectedRec.latitude], zoom: 17, pitch: 58, bearing: -18, duration: 1800, essential: true });
+
     const recSnapshot = selectedRec;
-
     const onMoveEnd = () => {
-      // Guard: if user already switched to another card, bail out
       if (moveEndRef.current !== onMoveEnd) return;
       moveEndRef.current = null;
 
       const point = map.project([recSnapshot.longitude, recSnapshot.latitude]);
-      const bbox = [
-        [point.x - 20, point.y - 20],
-        [point.x + 20, point.y + 20],
-      ];
-
+      const bbox = [[point.x - 20, point.y - 20], [point.x + 20, point.y + 20]];
       const buildings = map.queryRenderedFeatures(bbox, { layers: ['3d-buildings'] });
-      const targetHeight = 15 + recSnapshot.opportunity_score * 0.5;
 
       if (buildings.length > 0) {
         const closest = buildings.reduce((best, f) => {
           if (!f.geometry) return best;
-          const coords = f.geometry.type === 'Polygon'
-            ? f.geometry.coordinates[0]
-            : f.geometry.coordinates[0][0];
+          const coords = f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates[0][0];
           const cx = coords.reduce((s, c) => s + c[0], 0) / coords.length;
           const cy = coords.reduce((s, c) => s + c[1], 0) / coords.length;
           const dist = Math.hypot(cx - recSnapshot.longitude, cy - recSnapshot.latitude);
           return !best || dist < best.dist ? { f, dist } : best;
         }, null);
-        // Use actual OSM building height, boosted slightly so the green cap clears the roof
         const osmHeight = (closest.f.properties?.height || closest.f.properties?.render_height || 12) * 1.4;
         src.setData(buildFromRealFeature(closest.f, osmHeight));
       } else {
         src.setData(buildFallbackGeoJSON(recSnapshot));
       }
-
-      // Show popup
-      const busyness = recSnapshot.hourly[currentHour];
-      if (popupRef.current) { popupRef.current.remove(); }
-      popupRef.current = new mapboxgl.Popup({ offset: 30, className: 'expansion-popup', closeButton: true })
-        .setLngLat([recSnapshot.longitude, recSnapshot.latitude])
-        .setHTML(`
-          <div style="font-family:'Inter',sans-serif;padding:14px;min-width:230px;color:#1a2e12;">
-            <h3 style="margin:0 0 4px;font-size:15px;font-weight:700;">${recSnapshot.name}</h3>
-            <p style="margin:0 0 10px;font-size:11px;color:#3e6b2a;">${recSnapshot.address}</p>
-            <div style="display:flex;flex-direction:column;gap:5px;font-size:12px;">
-              <div>🎯 <b>Score:</b> <span style="color:${getScoreColor(recSnapshot.opportunity_score)};font-weight:700;">${recSnapshot.opportunity_score}/100 · ${getScoreLabel(recSnapshot.opportunity_score)}</span></div>
-              <div>🏠 <b>Est. Rent:</b> $${recSnapshot.estimated_rent.toLocaleString()}/mo</div>
-              <div>📈 <b>Projected Margin:</b> ${(recSnapshot.projected_profit_margin * 100).toFixed(1)}%</div>
-              <div>🚶 <b>Traffic Now:</b> <span style="color:${getFootColor(busyness)}">${busyness}% · ${getTrafficLabel(busyness)}</span></div>
-            </div>
-          </div>
-        `)
-        .addTo(map);
     };
 
     moveEndRef.current = onMoveEnd;
     map.on('moveend', onMoveEnd);
   }, [selectedId]);
 
-  // ── Update foot traffic heatmap on hour change ────────────────────────────
+  // ── Heatmap hour update ───────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
@@ -401,7 +409,7 @@ export default function ExpansionMap() {
     if (src) src.setData(buildHeatGeoJSON(recommendations, currentHour));
   }, [currentHour]);
 
-  // ── Toggle heatmap ────────────────────────────────────────────────────────
+  // ── Heatmap toggle ────────────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.getLayer('foot-heat-layer')) return;
@@ -410,11 +418,8 @@ export default function ExpansionMap() {
 
   // ── Play animation ────────────────────────────────────────────────────────
   useEffect(() => {
-    if (isPlaying) {
-      playRef.current = setInterval(() => setCurrentHour((h) => (h + 1) % 24), 800);
-    } else {
-      clearInterval(playRef.current);
-    }
+    if (isPlaying) { playRef.current = setInterval(() => setCurrentHour((h) => (h + 1) % 24), 800); }
+    else { clearInterval(playRef.current); }
     return () => clearInterval(playRef.current);
   }, [isPlaying]);
 
@@ -434,15 +439,7 @@ export default function ExpansionMap() {
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/locations/search`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            business_type: businessType,
-            location: location,
-            budget: budget ? parseFloat(budget) : null,
-          }),
-        }
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ business_type: businessType, location, budget: budget ? parseFloat(budget) : null }) }
       );
       const data = await res.json();
       if (data.status === 'ok' && data.locations?.length) {
@@ -454,13 +451,15 @@ export default function ExpansionMap() {
     } catch (err) {
       console.error('Search failed:', err);
       setSearchError('Could not reach backend. Using demo data.');
-      // Fall back to default data so the map still works
       setRecommendations(DEFAULT_RECOMMENDATIONS);
     } finally {
       setIsSearching(false);
+      setSearchCompleted(true);
       setShowSearch(false);
     }
   };
+
+  const infoPanelData = selectedRec ? getProsCons(selectedRec) : null;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -473,11 +472,10 @@ export default function ExpansionMap() {
       <div className="absolute top-16 left-0 bottom-0 w-80 z-10 flex flex-col pointer-events-auto"
         style={{ background: 'rgba(232,227,219,0.97)', borderRight: '1px solid #ddd8cf' }}>
 
-        {/* Search panel — collapses after search */}
+        {/* Search panel */}
         {showSearch ? (
           <div className="p-4" style={{ borderBottom: '1px solid #ddd8cf' }}>
             <h2 className="font-bold text-sm mb-3 tracking-wide" style={{ color: '#1a2e12' }}>🔍 Find Expansion Locations</h2>
-
             <div className="mb-2">
               <select value={businessType} onChange={(e) => { setBusinessType(e.target.value); setSearchError(''); }}
                 className="w-full rounded-lg px-3 py-2 text-xs focus:outline-none transition"
@@ -495,14 +493,12 @@ export default function ExpansionMap() {
                 <option>Other</option>
               </select>
             </div>
-
             <div className="mb-2">
               <input type="text" value={location} onChange={(e) => { setLocation(e.target.value); setSearchError(''); }}
                 placeholder="Target city or region..."
                 className="w-full rounded-lg px-3 py-2 text-xs focus:outline-none transition"
                 style={{ background: '#fff', border: '1px solid #ddd8cf', color: '#1a2e12' }} />
             </div>
-
             <div className="mb-2 flex gap-2">
               <div className="relative flex-1">
                 <span className="absolute left-3 top-2 text-xs" style={{ color: '#3e6b2a' }}>$</span>
@@ -519,7 +515,6 @@ export default function ExpansionMap() {
             </div>
             {autoFilled && <p className="text-xs mb-1 animate-pulse" style={{ color: '#3d8b24' }}>✓ Filled from Financial Sandbox</p>}
             {searchError && <p className="text-xs text-red-600 mb-1">{searchError}</p>}
-
             <button onClick={handleSearch} disabled={isSearching}
               className="w-full py-2 rounded-lg font-bold text-xs transition disabled:opacity-50"
               style={{ background: '#1a2e12', color: '#fff' }}>
@@ -540,48 +535,61 @@ export default function ExpansionMap() {
           </div>
         )}
 
+        {/* Traffic data source status */}
+        <div style={{ padding: '5px 14px 4px', borderBottom: '1px solid rgba(0,0,0,0.04)', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{
+            width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+            background: trafficDataSource === 'live' ? '#22c55e' : trafficDataSource === 'loading' ? '#eab308' : '#94a3b8',
+          }} />
+          <span style={{ fontSize: 9, color: '#3e6b2a', fontFamily: 'monospace', letterSpacing: '0.06em' }}>
+            {trafficDataSource === 'live' ? 'LIVE TRAFFIC DATA' : trafficDataSource === 'loading' ? 'LOADING…' : 'SAMPLE DATA'}
+          </span>
+        </div>
+
         {/* Location cards list */}
-        <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ddd8cf transparent' }}>
-          {recommendations
-            .sort((a, b) => b.opportunity_score - a.opportunity_score)
-            .map((rec, idx) => {
+        <div className="flex-1 overflow-y-auto relative" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ddd8cf transparent' }}>
+
+          {(searchCompleted
+            ? [...recommendations].sort((a, b) => b.opportunity_score - a.opportunity_score)
+            : recommendations
+          ).map((rec, idx) => {
               const busyness = rec.hourly[currentHour];
               const isActive = selectedId === rec.id;
+              const scoreColor = getScoreColor(rec.opportunity_score);
+              const scoreBg = getScoreBg(rec.opportunity_score);
+              // Light colors (yellow-green, yellow) need dark badge text for contrast
+              const badgeTextColor = (rec.opportunity_score >= 40 && rec.opportunity_score < 80) ? '#1a2e12' : '#fff';
               return (
                 <div key={rec.id}
                   className="loc-card"
                   onClick={() => setSelectedId(isActive ? null : rec.id)}
                   style={{
                     padding: '12px 14px',
-                    borderBottom: '1px solid rgba(255,255,255,0.05)',
+                    borderBottom: '1px solid rgba(0,0,0,0.04)',
                     cursor: 'pointer',
-                    background: isActive ? 'rgba(61,139,36,0.08)' : 'transparent',
-                    borderLeft: isActive ? '3px solid #3d8b24' : '3px solid transparent',
-                    transition: 'all 0.15s',
+                    background: (isActive && searchCompleted) ? scoreBg : 'transparent',
+                    borderLeft: `3px solid ${(isActive && searchCompleted) ? scoreColor : 'transparent'}`,
+                    transition: 'background 0.4s ease, border-color 0.4s ease',
                   }}>
 
-                  {/* Row 1: rank + name + score badge */}
+                  {/* Row 1: rank + name + score badge (badge only after search) */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <span style={{ fontSize: 10, color: '#3e6b2a', fontFamily: 'monospace', minWidth: 14 }}>
-                      {idx + 1}
-                    </span>
-                    <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: isActive ? '#3d8b24' : '#1a2e12' }}>
+                    <span style={{ fontSize: 10, color: '#3e6b2a', fontFamily: 'monospace', minWidth: 14 }}>{idx + 1}</span>
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#1a2e12' }}>
                       {rec.name}
                     </span>
-                    <span style={{
-                      fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
-                      color: getScoreColor(rec.opportunity_score),
-                      background: getScoreBg(rec.opportunity_score),
-                      border: `1px solid ${getScoreColor(rec.opportunity_score)}44`,
-                    }}>
-                      {rec.opportunity_score}
-                    </span>
+                    {searchCompleted && (
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
+                        background: scoreColor, color: badgeTextColor,
+                      }}>
+                        {rec.opportunity_score}
+                      </span>
+                    )}
                   </div>
 
                   {/* Row 2: address */}
-                  <div style={{ fontSize: 11, color: '#3e6b2a', marginBottom: 8, paddingLeft: 22 }}>
-                    {rec.address}
-                  </div>
+                  <div style={{ fontSize: 11, color: '#3e6b2a', marginBottom: 8, paddingLeft: 22 }}>{rec.address}</div>
 
                   {/* Row 3: stats */}
                   <div style={{ display: 'flex', gap: 10, paddingLeft: 22 }}>
@@ -593,26 +601,19 @@ export default function ExpansionMap() {
                     </div>
                   </div>
 
-                  {/* Row 4: foot traffic bar */}
+                  {/* Row 4: foot traffic */}
                   <div style={{ paddingLeft: 22, marginTop: 8 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
                       <span style={{ fontSize: 10, color: '#3e6b2a' }}>🚶 Foot traffic · {HOURS[currentHour]}</span>
-                      <span style={{ fontSize: 10, color: getFootColor(busyness), fontWeight: 600 }}>
-                        {getTrafficLabel(busyness)}
-                      </span>
+                      <span style={{ fontSize: 10, color: getFootColor(busyness), fontWeight: 600 }}>{getTrafficLabel(busyness)}</span>
                     </div>
                     <div style={{ height: 4, background: '#ddd8cf', borderRadius: 4, overflow: 'hidden' }}>
-                      <div style={{
-                        height: '100%', width: `${busyness}%`,
-                        background: getFootColor(busyness),
-                        borderRadius: 4, transition: 'width 0.4s, background 0.4s',
-                      }} />
+                      <div style={{ height: '100%', width: `${busyness}%`, background: getFootColor(busyness), borderRadius: 4, transition: 'width 0.4s, background 0.4s' }} />
                     </div>
                   </div>
 
-                  {/* Expand hint */}
                   {isActive && (
-                    <div style={{ paddingLeft: 22, marginTop: 8, fontSize: 10, color: '#3d8b24', opacity: 0.7 }}>
+                    <div style={{ paddingLeft: 22, marginTop: 8, fontSize: 10, color: '#3e6b2a', opacity: 0.75 }}>
                       ↑ Viewing on map · click again to deselect
                     </div>
                   )}
@@ -621,7 +622,7 @@ export default function ExpansionMap() {
             })}
         </div>
 
-        {/* Foot traffic heatmap toggle at bottom of sidebar */}
+        {/* Heatmap toggle */}
         <div style={{ padding: '10px 14px', borderTop: '1px solid #ddd8cf' }}>
           <button onClick={() => setHeatmapVisible((prev) => !prev)}
             style={{
@@ -631,9 +632,7 @@ export default function ExpansionMap() {
               border: heatmapVisible ? '1px solid #3d8b24' : '1px solid #ddd8cf',
               cursor: 'pointer', transition: 'all 0.2s',
             }}>
-            <span style={{ fontSize: 12, color: heatmapVisible ? '#1a2e12' : '#3e6b2a', fontWeight: 600 }}>
-              🌡 Foot Traffic Heatmap
-            </span>
+            <span style={{ fontSize: 12, color: heatmapVisible ? '#1a2e12' : '#3e6b2a', fontWeight: 600 }}>🌡 Foot Traffic Heatmap</span>
             <span style={{
               fontSize: 10, padding: '2px 8px', borderRadius: 10, fontWeight: 700,
               background: heatmapVisible ? '#dcefd8' : '#f3f0eb',
@@ -645,12 +644,103 @@ export default function ExpansionMap() {
         </div>
       </div>
 
-      {/* ── Timeline — bottom center (accounts for sidebar) ── */}
+      {/* ── Right Info Panel ── */}
+      {selectedRec && (
+        <div key={selectedRec.id} className="pointer-events-auto"
+          style={{ position: 'absolute', right: 16, top: 80, zIndex: 20 }}>
+          <div className="info-panel-enter" style={{
+            width: 292,
+            maxHeight: 'calc(100vh - 220px)',
+            background: 'rgba(232,227,219,0.98)',
+            borderRadius: 24,
+            border: '1px solid #ddd8cf',
+            boxShadow: '0 24px 60px rgba(26,46,18,0.22)',
+            overflowY: 'auto',
+            scrollbarWidth: 'thin',
+            scrollbarColor: '#ddd8cf transparent',
+          }}>
+
+            {/* Header */}
+            <div style={{ padding: '18px 18px 14px', borderBottom: '1px solid #ddd8cf', position: 'relative' }}>
+              <button onClick={() => setSelectedId(null)} style={{
+                position: 'absolute', top: 14, right: 14,
+                width: 26, height: 26, borderRadius: '50%',
+                background: 'rgba(26,46,18,0.07)', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 15, color: '#3e6b2a', fontWeight: 700, lineHeight: 1,
+              }}>×</button>
+              <div style={{ fontSize: 10, color: '#3e6b2a', marginBottom: 4, letterSpacing: '0.08em' }}>EXPANSION OPPORTUNITY</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#1a2e12', marginBottom: 4, paddingRight: 30 }}>{selectedRec.name}</div>
+              <div style={{ fontSize: 11, color: '#3e6b2a' }}>{selectedRec.address}</div>
+            </div>
+
+            {/* Donut + score legend */}
+            <div style={{ padding: '16px 18px', borderBottom: '1px solid #ddd8cf', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <DonutChart score={selectedRec.opportunity_score} color={getScoreColor(selectedRec.opportunity_score)} />
+              <div>
+                <div style={{ fontSize: 10, color: '#3e6b2a', letterSpacing: '0.08em', marginBottom: 4 }}>OPPORTUNITY SCORE</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: getScoreColor(selectedRec.opportunity_score) }}>
+                  {getScoreLabel(selectedRec.opportunity_score)}
+                </div>
+                <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: getScoreColor(selectedRec.opportunity_score), flexShrink: 0 }} />
+                    <span style={{ fontSize: 10, color: '#3e6b2a' }}>Positives · {selectedRec.opportunity_score}%</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#e0dbd3', flexShrink: 0 }} />
+                    <span style={{ fontSize: 10, color: '#3e6b2a' }}>Negatives · {100 - selectedRec.opportunity_score}%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Key metrics */}
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid #ddd8cf' }}>
+              <div style={{ fontSize: 10, color: '#3e6b2a', letterSpacing: '0.08em', marginBottom: 10 }}>KEY METRICS</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: '#3e6b2a' }}>🏠 Est. Rent</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#1a2e12' }}>${selectedRec.estimated_rent.toLocaleString()}/mo</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: '#3e6b2a' }}>📈 Profit Margin</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#1a2e12' }}>{(selectedRec.projected_profit_margin * 100).toFixed(1)}%</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: '#3e6b2a' }}>🚶 Traffic Now</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: getFootColor(selectedRec.hourly[currentHour]) }}>
+                    {selectedRec.hourly[currentHour]}% · {getTrafficLabel(selectedRec.hourly[currentHour])}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Pros & Cons */}
+            <div style={{ padding: '14px 18px' }}>
+              <div style={{ fontSize: 10, color: '#3e6b2a', letterSpacing: '0.08em', marginBottom: 10 }}>ANALYSIS</div>
+              {infoPanelData?.pros.map((p, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 7, marginBottom: 7 }}>
+                  <span style={{ color: getScoreColor(selectedRec.opportunity_score), fontSize: 13, lineHeight: 1.2, flexShrink: 0 }}>✓</span>
+                  <span style={{ fontSize: 11, color: '#1a2e12', lineHeight: 1.4 }}>{p}</span>
+                </div>
+              ))}
+              {infoPanelData?.cons.map((c, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 7, marginBottom: 7 }}>
+                  <span style={{ color: '#ef4444', fontSize: 13, lineHeight: 1.2, flexShrink: 0 }}>✗</span>
+                  <span style={{ fontSize: 11, color: '#1a2e12', lineHeight: 1.4 }}>{c}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Timeline — bottom center ── */}
       <div style={{
         position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-20%)',
         zIndex: 10, background: 'rgba(232,227,219,0.97)',
-        border: '1px solid #ddd8cf',
-        borderRadius: 10, padding: '10px 14px',
+        border: '1px solid #ddd8cf', borderRadius: 10, padding: '10px 14px',
         backdropFilter: 'blur(8px)', minWidth: 520,
       }} className="pointer-events-auto">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -667,7 +757,6 @@ export default function ExpansionMap() {
             {isPlaying ? '⏹ STOP' : '▶ PLAY'}
           </button>
         </div>
-
         <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end' }}>
           {HOURS.map((h, i) => {
             const avg = recommendations.reduce((sum, r) => sum + r.hourly[i], 0) / recommendations.length;
@@ -678,17 +767,13 @@ export default function ExpansionMap() {
               <div key={i} onClick={() => setCurrentHour(i)}
                 style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}>
                 <div style={{
-                  width: 17, height: 36,
-                  background: '#f3f0eb',
-                  borderRadius: 3, overflow: 'hidden',
+                  width: 17, height: 36, background: '#f3f0eb', borderRadius: 3, overflow: 'hidden',
                   border: isSelected ? `1px solid ${color}` : isNow ? '1px solid #3d8b24' : '1px solid #ddd8cf',
                   position: 'relative',
                 }}>
                   <div style={{
-                    position: 'absolute', bottom: 0, width: '100%',
-                    height: `${avg}%`,
-                    background: isSelected ? color : `${color}66`,
-                    borderRadius: 2, transition: 'height 0.3s',
+                    position: 'absolute', bottom: 0, width: '100%', height: `${avg}%`,
+                    background: isSelected ? color : `${color}66`, borderRadius: 2, transition: 'height 0.3s',
                   }} />
                 </div>
                 <div style={{
