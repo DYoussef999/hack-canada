@@ -1,5 +1,5 @@
 """
-agents.py — Backboard.io multi-agent system for Compass AI.
+agents.py — Backboard.io multi-agent system for Ploutos.
 
 Architecture
 ────────────
@@ -48,7 +48,7 @@ SCOUT_TOOLS = []
 # ── System prompts ───────────────────────────────────────────────────────────────
 
 _ACCOUNTANT_PROMPT = """
-You are The Accountant — a Canadian SMB financial analyst embedded in Compass AI.
+You are The Accountant — a Canadian SMB financial analyst embedded in Ploutos.
 
 When given a React Flow canvas (JSON of nodes + edges) representing a business model:
 1. Sum all 'source' nodes → monthly revenue.
@@ -119,9 +119,9 @@ async def initialize_agents() -> None:
         return str(a.assistant_id)
 
     _accountant_id, _scout_id, _ingestor_id = await asyncio.gather(
-        _get_or_create("Compass-Accountant", _ACCOUNTANT_PROMPT),
-        _get_or_create("Compass-Scout",      _SCOUT_PROMPT, tools=SCOUT_TOOLS),
-        _get_or_create("Compass-Ingestor",   _INGESTOR_PROMPT),
+        _get_or_create("Ploutos-Accountant", _ACCOUNTANT_PROMPT),
+        _get_or_create("Ploutos-Scout",      _SCOUT_PROMPT, tools=SCOUT_TOOLS),
+        _get_or_create("Ploutos-Ingestor",   _INGESTOR_PROMPT),
     )
 
 

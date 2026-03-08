@@ -1,5 +1,6 @@
 import "./globals.css";
-import Navbar from "@/components/Navbar";
+import LayoutShell from "@/components/LayoutShell";
+import { UserProvider } from "@auth0/nextjs-auth0/client";
 
 export const metadata = {
   title: "Compass AI",
@@ -9,9 +10,16 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-gray-50">
-        <Navbar />
-        <main className="max-w-6xl mx-auto px-6 py-8">{children}</main>
+      <head>
+        <link
+          href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="min-h-screen" style={{ background: 'var(--cream)' }}>
+        <UserProvider>
+          <LayoutShell>{children}</LayoutShell>
+        </UserProvider>
       </body>
     </html>
   );

@@ -55,13 +55,10 @@ function findCol(headers: string[], ...keywords: string[]): number {
 
 function guessCategory(label: string, rawCat: string): NodeCategory {
   const cat = rawCat.toLowerCase().trim();
-  // Exact map hit
   if (CATEGORY_MAP[cat]) return CATEGORY_MAP[cat];
-  // Partial match in map keys
   for (const [key, val] of Object.entries(CATEGORY_MAP)) {
     if (cat.includes(key) || key.includes(cat)) return val;
   }
-  // Scan label words as last resort
   const words = label.toLowerCase().split(/\s+/);
   for (const w of words) {
     if (CATEGORY_MAP[w]) return CATEGORY_MAP[w];
@@ -80,7 +77,6 @@ function parseCsvToNodes(raw: string): { nodes: Node<AnyNodeData>[]; error: stri
 
   const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
 
-  // Fuzzy column detection — order matters (more specific first)
   const labelCol    = findCol(headers, 'description', 'label', 'name', 'item', 'product', 'service', 'line');
   const valueCol    = findCol(headers, 'amount', 'value', 'cost', 'price', 'payment', 'total', 'revenue', 'monthly');
   const freqCol     = findCol(headers, 'frequency', 'freq', 'period', 'schedule', 'recurrence', 'recurring');
@@ -140,19 +136,28 @@ function PreviewRow({ node }: { node: Node<AnyNodeData> }) {
   const isSource = node.type === 'source';
   const data = node.data as { label: string; value: number; category?: string };
   return (
-    <div className={`flex items-center justify-between px-2.5 py-1.5 rounded text-xs border ${
-      isSource ? 'bg-green-950/40 border-green-900/60' : 'bg-red-950/40 border-red-900/60'
-    }`}>
+    <div
+      className={`flex items-center justify-between px-2.5 py-1.5 rounded text-xs border ${
+        isSource
+          ? 'bg-emerald-50 border-emerald-200'
+          : 'bg-rose-50 border-rose-200'
+      }`}
+    >
       <div className="flex items-center gap-2">
-        <span className={`text-[10px] font-bold ${isSource ? 'text-green-400' : 'text-red-400'}`}>
+        <span className={`text-[10px] font-bold ${isSource ? 'text-emerald-600' : 'text-rose-600'}`}>
           {isSource ? 'REV' : 'EXP'}
         </span>
-        <span className="text-zinc-300">{data.label}</span>
+        <span style={{ color: 'var(--forest)' }}>{data.label}</span>
         {data.category && (
-          <span className="text-[9px] text-zinc-600 border border-zinc-700 px-1 rounded">{data.category}</span>
+          <span
+            className="text-[9px] px-1 rounded border"
+            style={{ color: 'var(--moss)', borderColor: 'var(--forest-rim)', background: 'var(--forest-mid)' }}
+          >
+            {data.category}
+          </span>
         )}
       </div>
-      <span className={`tabular-nums font-medium ${isSource ? 'text-green-400' : 'text-red-400'}`}>
+      <span className={`tabular-nums font-medium ${isSource ? 'text-emerald-600' : 'text-rose-600'}`}>
         ${data.value.toLocaleString()}
       </span>
     </div>
@@ -160,10 +165,9 @@ function PreviewRow({ node }: { node: Node<AnyNodeData> }) {
 }
 
 export default function ImportModal({ onClose, onImport }: Props) {
-  const [csv, setCsv]         = useState('');
-  const [error, setError]     = useState<string | null>(null);
+  const [csv, setCsv]     = useState('');
+  const [error, setError] = useState<string | null>(null);
 
-  // Live preview as user types
   const { nodes: preview, error: previewError } = csv.trim()
     ? parseCsvToNodes(csv)
     : { nodes: [], error: null };
@@ -177,24 +181,36 @@ export default function ImportModal({ onClose, onImport }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full max-w-lg mx-4 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden">
+      <div
+        className="w-full max-w-lg mx-4 rounded-2xl shadow-2xl overflow-hidden"
+        style={{ background: 'var(--cream)', border: '1px solid var(--forest-rim)' }}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
+        <div
+          className="flex items-center justify-between px-5 py-4"
+          style={{ borderBottom: '1px solid var(--forest-rim)' }}
+        >
           <div className="flex items-center gap-2.5">
-            <FileText className="w-4 h-4 text-blue-400" />
-            <h2 className="text-sm font-semibold text-zinc-200">Import from CSV</h2>
+            <FileText className="w-4 h-4" style={{ color: 'var(--sage)' }} />
+            <h2 className="text-sm font-semibold" style={{ color: 'var(--forest)' }}>Import from CSV</h2>
           </div>
-          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+          <button
+            onClick={onClose}
+            className="transition-colors"
+            style={{ color: 'var(--moss)' }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--forest)')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--moss)')}
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Body */}
         <div className="p-5 space-y-4">
-          <p className="text-xs text-zinc-500 leading-relaxed">
+          <p className="text-xs leading-relaxed" style={{ color: 'var(--moss)' }}>
             Paste any CSV — column names are detected automatically. Amounts are normalized to monthly
             using the frequency column (Daily, Weekly, Bi-weekly, Monthly, Annual, etc.).
             Rows with a category containing "Revenue" or "Income" become revenue nodes; everything else is an expense.
@@ -202,12 +218,15 @@ export default function ImportModal({ onClose, onImport }: Props) {
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+              <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--moss)' }}>
                 Spreadsheet Data
               </label>
               <button
                 onClick={() => { setCsv(PLACEHOLDER); setError(null); }}
-                className="text-[10px] text-blue-500 hover:text-blue-400 transition-colors"
+                className="text-[10px] transition-colors"
+                style={{ color: 'var(--sage)' }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--moss)')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--sage)')}
               >
                 Load example
               </button>
@@ -217,7 +236,12 @@ export default function ImportModal({ onClose, onImport }: Props) {
               onChange={(e) => { setCsv(e.target.value); setError(null); }}
               placeholder={PLACEHOLDER}
               rows={6}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-xs text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-blue-600 transition-colors resize-none font-mono leading-relaxed"
+              className="w-full rounded-lg px-3 py-2.5 text-xs focus:outline-none transition-colors resize-none font-mono leading-relaxed"
+              style={{
+                background: 'var(--forest-mid)',
+                border: '1px solid var(--forest-rim)',
+                color: 'var(--forest)',
+              }}
             />
           </div>
 
@@ -225,8 +249,8 @@ export default function ImportModal({ onClose, onImport }: Props) {
           {preview.length > 0 && (
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <CheckCircle className="w-3 h-3 text-green-400" />
-                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                <CheckCircle className="w-3 h-3 text-emerald-600" />
+                <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--moss)' }}>
                   Preview — {preview.length} node{preview.length !== 1 ? 's' : ''} detected
                 </span>
               </div>
@@ -237,7 +261,7 @@ export default function ImportModal({ onClose, onImport }: Props) {
           )}
 
           {(error || (csv.trim() && previewError)) && (
-            <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-950/50 border border-red-800 text-xs text-red-400">
+            <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-600">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
               {error ?? previewError}
             </div>
@@ -245,17 +269,26 @@ export default function ImportModal({ onClose, onImport }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-zinc-800">
+        <div
+          className="flex items-center justify-end gap-3 px-5 py-4"
+          style={{ borderTop: '1px solid var(--forest-rim)' }}
+        >
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+            className="px-4 py-2 rounded-lg text-sm transition-colors"
+            style={{ color: 'var(--moss)' }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--forest)')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--moss)')}
           >
             Cancel
           </button>
           <button
             onClick={handleImport}
             disabled={preview.length === 0}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm font-semibold text-white"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            style={{ background: 'var(--forest)' }}
+            onMouseEnter={(e) => { if (preview.length > 0) (e.currentTarget as HTMLButtonElement).style.background = 'var(--moss)'; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--forest)'; }}
           >
             <Upload className="w-4 h-4" />
             Add {preview.length > 0 ? `${preview.length} ` : ''}Nodes to Canvas

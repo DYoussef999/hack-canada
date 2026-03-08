@@ -1,8 +1,12 @@
+<<<<<<< HEAD
 # Plutos
+=======
+# Ploutos
+>>>>>>> 910f126dc1baf64cde8e9b5b07b5b61b5dc5731f
 
 **Visual Financial Sandbox for Canadian SMBs.** Built for Hack Canada 2026.
 
-Compass AI helps small business owners visualize their financial health on a drag-and-drop React Flow canvas and receive expansion strategy grounded in real Canadian economic data.
+Ploutos helps small business owners visualize their financial health on a drag-and-drop React Flow canvas and receive expansion strategy grounded in real Canadian economic data.
 
 ---
 
@@ -11,7 +15,7 @@ Compass AI helps small business owners visualize their financial health on a dra
 ### Two Parallel Backend Layers
 
 **Layer 1 — Backboard.io** (`backend/agents.py`)
-Three persistent assistants: `Compass-Accountant`, `Compass-Scout`, `Compass-Ingestor`. Session state is held in-memory (one accountant + one scout thread per session). The Scout runs a tool-call loop fetching market data before synthesizing an expansion recommendation.
+Three persistent assistants: `Ploutos-Accountant`, `Ploutos-Scout`, `Ploutos-Ingestor`. Session state is held in-memory (one accountant + one scout thread per session). The Scout runs a tool-call loop fetching market data before synthesizing an expansion recommendation.
 
 **Layer 2 — Gemini + Real Canadian APIs** (`backend/gemini_agents/`, `backend/routers/`, `backend/services/`)
 All external API responses pass through `backend/utils/digest.py` before entering any agent prompt — agents never receive raw JSON.

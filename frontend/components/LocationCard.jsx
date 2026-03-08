@@ -1,39 +1,62 @@
-const trafficColors = {
-  "Very High": "bg-green-100 text-green-700",
-  High:        "bg-blue-100 text-blue-700",
-  Medium:      "bg-yellow-100 text-yellow-700",
-  Low:         "bg-red-100 text-red-600",
-};
-
 export default function LocationCard({ location, index }) {
-  const trafficStyle = trafficColors[location.foot_traffic] || "bg-gray-100 text-gray-600";
   const scoreColor =
-    location.score >= 75 ? "text-green-600" : location.score >= 50 ? "text-yellow-500" : "text-red-500";
+    location.score >= 75 ? "var(--sage)" : location.score >= 50 ? "var(--amber)" : "var(--amber)";
+
+  const trafficColorMap = {
+    "Very High": { color: "#3d8b24", bg: "rgba(61,139,36,0.08)", border: "rgba(61,139,36,0.2)" },
+    High:        { color: "#3d8b24", bg: "rgba(61,139,36,0.08)", border: "rgba(61,139,36,0.2)" },
+    Medium:      { color: "#c49530", bg: "rgba(196,149,48,0.08)", border: "rgba(196,149,48,0.2)" },
+    Low:         { color: "#c49530", bg: "rgba(196,149,48,0.08)", border: "rgba(196,149,48,0.2)" },
+  };
+  const tc = trafficColorMap[location.foot_traffic] || trafficColorMap.Medium;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-center justify-between gap-4">
-      {/* Rank badge + info */}
-      <div className="flex items-center gap-4">
-        <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+    <div style={{
+      background: "var(--white)",
+      border: "1px solid var(--forest-rim)",
+      borderRadius: "14px",
+      padding: "20px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: "16px",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+        <div style={{
+          width: "36px", height: "36px", borderRadius: "50%",
+          background: "var(--forest)", color: "#FFFFFF",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontWeight: "700", fontSize: "14px", flexShrink: 0,
+          fontFamily: "'DM Sans', sans-serif",
+        }}>
           {index}
         </div>
         <div>
-          <h3 className="font-bold text-gray-900">{location.name}</h3>
-          <div className="flex flex-wrap gap-3 mt-1 text-sm text-gray-500">
-            <span>Rent: <strong>${location.rent.toLocaleString()}/mo</strong></span>
-            <span
-              className={`px-2 py-0.5 rounded-full text-xs font-medium ${trafficStyle}`}
-            >
+          <h3 style={{ fontWeight: "700", color: "var(--forest)", fontSize: "15px", fontFamily: "'DM Sans', sans-serif", margin: 0 }}>
+            {location.name}
+          </h3>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginTop: "4px", fontSize: "13px", color: "var(--moss)" }}>
+            <span>Rent: <strong style={{ color: "var(--forest)" }}>${location.rent.toLocaleString()}/mo</strong></span>
+            <span style={{
+              padding: "2px 8px", borderRadius: "20px", fontSize: "11px", fontWeight: "600",
+              color: tc.color, background: tc.bg, border: `1px solid ${tc.border}`,
+            }}>
               {location.foot_traffic} Traffic
             </span>
           </div>
         </div>
       </div>
 
-      {/* Score */}
-      <div className="text-right shrink-0">
-        <div className={`text-3xl font-extrabold ${scoreColor}`}>{location.score}</div>
-        <div className="text-xs text-gray-400 uppercase tracking-wide">Score</div>
+      <div style={{ textAlign: "right", flexShrink: 0 }}>
+        <div style={{
+          fontFamily: "'Playfair Display', serif",
+          fontSize: "30px", fontWeight: "700", color: scoreColor, lineHeight: 1,
+        }}>
+          {location.score}
+        </div>
+        <div style={{ fontSize: "10px", color: "var(--moss)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: "2px", opacity: 0.6 }}>
+          Score
+        </div>
       </div>
     </div>
   );

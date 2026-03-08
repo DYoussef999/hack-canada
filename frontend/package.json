@@ -1,5 +1,5 @@
 {
-  "name": "launchpad-ai",
+  "name": "ploutos",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@auth0/nextjs-auth0": "^3.8.0",
     "axios": "^1.7.0",
     "lucide-react": "^0.577.0",
     "mapbox-gl": "^3.19.1",
@@ -18,12 +19,12 @@
     "recharts": "^2.12.0"
   },
   "devDependencies": {
-    "@types/node": "^25.3.5",
-    "@types/react": "^19.2.14",
+    "@types/node": "25.3.5",
+    "@types/react": "19.2.14",
     "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.4.0",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0",
-    "typescript": "^5.9.3"
+    "typescript": "5.9.3"
   }
 }

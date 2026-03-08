@@ -22,7 +22,7 @@ from .tools import tools
 log = logging.getLogger(__name__)
 
 _SYSTEM_PROMPT = """
-You are a Canadian SMB financial analyst embedded in Compass AI.
+You are a Canadian SMB financial analyst embedded in Ploutos.
 
 You receive:
 1. A JSON FinancialProfile with canvas nodes (type: "source" = revenue, "expense" = cost).

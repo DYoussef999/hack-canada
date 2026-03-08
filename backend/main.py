@@ -1,5 +1,5 @@
 """
-main.py — Compass AI FastAPI backend.
+main.py — Ploutos FastAPI backend.
 
 Endpoints (new Gemini intelligence layer)
 ──────────────────────────────────────────
@@ -60,7 +60,7 @@ async def lifespan(_: FastAPI):
 # ── App ───────────────────────────────────────────────────────────────────────
 
 app = FastAPI(
-    title="Compass AI API",
+    title="Ploutos API",
     description="Multi-agent financial sandbox backend for Hack Canada 2026",
     version="2.1.0",
     lifespan=lifespan,
@@ -187,6 +187,6 @@ async def _check_gemini() -> str:
 
 @app.get("/", tags=["Health"])
 def root():
-    return {"status": "ok", "service": "Compass AI API v2.1", "docs": "/docs"}
+    return {"status": "ok", "service": "Ploutos API v2.1", "docs": "/docs"}
 
  
