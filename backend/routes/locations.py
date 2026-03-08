@@ -7,7 +7,8 @@ from typing import List, Optional
 
 router = APIRouter(prefix="/api/locations", tags=["locations"])
 
-BESTTIME_PRIVATE_KEY = os.getenv("BESTTIME_PRIVATE_KEY")
+# Also accepts BESTTIME_API_KEY as a fallback (e.g. if the private key was stored under that name)
+BESTTIME_PRIVATE_KEY = os.getenv("BESTTIME_PRIVATE_KEY") or os.getenv("BESTTIME_API_KEY")
 BESTTIME_PUBLIC_KEY = os.getenv("BESTTIME_PUBLIC_KEY")
 BESTTIME_FORECAST_URL = "https://besttime.app/api/v1/forecasts"
 BESTTIME_QUERY_URL = "https://besttime.app/api/v1/forecasts/week"
@@ -69,14 +70,20 @@ FALLBACK_HOURLY = {
 }
 
 
-async def fetch_besttime_hourly(client: httpx.AsyncClient, location: dict) -> list:
+async def fetch_besttime_hourly(client: httpx.AsyncClient, location: dict):
     """
-    Call BestTime forecast for a venue and return averaged 24-hour busyness array.
-    Averages across all 7 days to get a typical weekly pattern.
-    Falls back to hardcoded data if the API call fails.
+    Designed to support both on-load initialisation and future search-triggered foot
+    traffic fetching. Accepts a location dict with a 'besttime_query' key.
+
+    Calls BestTime POST /forecasts and returns an averaged 24-hour busyness array
+    (averaged across all 7 days for a typical weekly pattern).
+
+    Returns a tuple: (hourly_list, data_source) where data_source is 'live' or 'fallback'.
+    Falls back silently to hardcoded data if the API key is missing, the call fails,
+    or the response cannot be parsed.
     """
     if not BESTTIME_PRIVATE_KEY:
-        return FALLBACK_HOURLY.get(location["id"], [0] * 24)
+        return FALLBACK_HOURLY.get(location["id"], [0] * 24), "fallback"
 
     try:
         response = await client.post(
@@ -92,16 +99,16 @@ async def fetch_besttime_hourly(client: httpx.AsyncClient, location: dict) -> li
 
         if data.get("status") != "OK":
             print(f"BestTime error for {location['name']}: {data.get('message')}")
-            return FALLBACK_HOURLY.get(location["id"], [0] * 24)
+            return FALLBACK_HOURLY.get(location["id"], [0] * 24), "fallback"
 
         # Extract day_raw arrays from each day and average them
         analysis = data.get("analysis", [])
         if not analysis:
-            return FALLBACK_HOURLY.get(location["id"], [0] * 24)
+            return FALLBACK_HOURLY.get(location["id"], [0] * 24), "fallback"
 
         all_days = [day.get("day_raw", []) for day in analysis if day.get("day_raw")]
         if not all_days:
-            return FALLBACK_HOURLY.get(location["id"], [0] * 24)
+            return FALLBACK_HOURLY.get(location["id"], [0] * 24), "fallback"
 
         # Average across all days that returned data
         num_days = len(all_days)
@@ -109,11 +116,11 @@ async def fetch_besttime_hourly(client: httpx.AsyncClient, location: dict) -> li
             round(sum(all_days[d][h] for d in range(num_days)) / num_days)
             for h in range(24)
         ]
-        return averaged
+        return averaged, "live"
 
     except Exception as e:
         print(f"BestTime fetch failed for {location['name']}: {e}")
-        return FALLBACK_HOURLY.get(location["id"], [0] * 24)
+        return FALLBACK_HOURLY.get(location["id"], [0] * 24), "fallback"
 
 
 class SearchRequest(BaseModel):
@@ -144,13 +151,15 @@ async def search_locations(body: SearchRequest):
 
     # ── Fetch BestTime data for all filtered locations in parallel ────────────
     async with httpx.AsyncClient() as client:
-        hourly_results = await asyncio.gather(*[
+        fetch_results = await asyncio.gather(*[
             fetch_besttime_hourly(client, loc) for loc in filtered
         ])
 
     # ── Build response ────────────────────────────────────────────────────────
     results = []
-    for loc, hourly in zip(filtered, hourly_results):
+    sources = []
+    for loc, (hourly, source) in zip(filtered, fetch_results):
+        sources.append(source)
         results.append({
             "id": loc["id"],
             "name": loc["name"],
@@ -163,7 +172,13 @@ async def search_locations(body: SearchRequest):
             "hourly": hourly,
         })
 
-    return {"status": "ok", "locations": results}
+    data_source = "live" if any(s == "live" for s in sources) else "fallback"
+    if data_source == "fallback":
+        print("BestTime API unavailable — using fallback traffic data")
+    else:
+        print(f"BestTime API: live foot traffic data loaded for {sum(s == 'live' for s in sources)} location(s)")
+
+    return {"status": "ok", "locations": results, "data_source": data_source}
 
 
 @router.get("/health")

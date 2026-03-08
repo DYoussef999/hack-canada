@@ -59,20 +59,49 @@ function getScoreLabel(score) {
   return 'Very Low';
 }
 
+// 5-tier traffic intensity: Very High → red, High → orange, Medium → yellow, Low → green, Very Low → blue-grey
 function getFootColor(busyness) {
-  if (busyness >= 80) return '#86efac';
-  if (busyness >= 60) return '#6ee7b7';
-  if (busyness >= 40) return '#5eead4';
-  if (busyness >= 20) return '#67e8f9';
-  return '#7dd3fc';
+  if (busyness >= 80) return '#ef4444'; // Very High
+  if (busyness >= 60) return '#f97316'; // High
+  if (busyness >= 40) return '#eab308'; // Medium
+  if (busyness >= 20) return '#22c55e'; // Low
+  return '#94a3b8';                     // Very Low
 }
 
 function getTrafficLabel(busyness) {
-  if (busyness >= 80) return 'Peak';
-  if (busyness >= 60) return 'Busy';
-  if (busyness >= 40) return 'Moderate';
-  if (busyness >= 20) return 'Quiet';
-  return 'Very Quiet';
+  if (busyness >= 80) return 'Very High';
+  if (busyness >= 60) return 'High';
+  if (busyness >= 40) return 'Medium';
+  if (busyness >= 20) return 'Low';
+  return 'Very Low';
+}
+
+// ── Foot traffic API ──────────────────────────────────────────────────────────
+/**
+ * Single entry point for all foot traffic data fetching.
+ * Designed to support both on-load initialisation and future search-triggered calls
+ * by accepting an optional location hint (area/city string) for dynamic lookups.
+ *
+ * @param {string} [locationHint] - Optional area for search-driven calls (future use)
+ * @returns {{ locations: Array, source: 'live'|'fallback' }}
+ */
+async function fetchFootTrafficData(locationHint) {
+  try {
+    const body = locationHint ? { location: locationHint } : {};
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/locations/search`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.status === 'ok' && data.locations?.length) {
+      return { locations: data.locations, source: data.data_source || 'live' };
+    }
+    throw new Error('Invalid response shape');
+  } catch (err) {
+    console.warn('BestTime API unavailable — using fallback traffic data', err);
+    return { locations: DEFAULT_RECOMMENDATIONS, source: 'fallback' };
+  }
 }
 
 function getProsCons(rec) {
@@ -211,6 +240,7 @@ export default function ExpansionMap() {
   const moveEndRef = useRef(null);
 
   const [recommendations, setRecommendations] = useState(DEFAULT_RECOMMENDATIONS);
+  const [trafficDataSource, setTrafficDataSource] = useState('loading');
   const [selectedId, setSelectedId] = useState(null);
   const [heatmapVisible, setHeatmapVisible] = useState(true);
   const [currentHour, setCurrentHour] = useState(new Date().getHours());
@@ -227,6 +257,15 @@ export default function ExpansionMap() {
   const [searchCompleted, setSearchCompleted] = useState(false);
 
   const selectedRec = recommendations.find((r) => r.id === selectedId) || null;
+
+  // ── Load live foot traffic on mount ───────────────────────────────────────
+  useEffect(() => {
+    fetchFootTrafficData().then(({ locations, source }) => {
+      setRecommendations(locations);
+      setTrafficDataSource(source);
+      if (source === 'live') console.log('✓ BestTime API: live foot traffic data loaded');
+    });
+  }, []);
 
   // ── Init Map ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -281,8 +320,12 @@ export default function ExpansionMap() {
           'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.55, 15, 0.7, 19, 0.8],
           'heatmap-color': [
             'interpolate', ['linear'], ['heatmap-density'],
-            0, 'rgba(14,116,144,0)', 0.2, '#164e63', 0.4, '#0e7490',
-            0.6, '#0d9488', 0.8, '#059669', 1.0, '#16a34a',
+            0,   'rgba(148,163,184,0)', // Very Low - transparent
+            0.2, '#94a3b8',             // Very Low - blue-grey
+            0.4, '#22c55e',             // Low - green
+            0.6, '#eab308',             // Medium - yellow
+            0.8, '#f97316',             // High - orange
+            1.0, '#ef4444',             // Very High - red
           ],
         },
       });
@@ -491,6 +534,17 @@ export default function ExpansionMap() {
             </button>
           </div>
         )}
+
+        {/* Traffic data source status */}
+        <div style={{ padding: '5px 14px 4px', borderBottom: '1px solid rgba(0,0,0,0.04)', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{
+            width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+            background: trafficDataSource === 'live' ? '#22c55e' : trafficDataSource === 'loading' ? '#eab308' : '#94a3b8',
+          }} />
+          <span style={{ fontSize: 9, color: '#3e6b2a', fontFamily: 'monospace', letterSpacing: '0.06em' }}>
+            {trafficDataSource === 'live' ? 'LIVE TRAFFIC DATA' : trafficDataSource === 'loading' ? 'LOADING…' : 'SAMPLE DATA'}
+          </span>
+        </div>
 
         {/* Location cards list */}
         <div className="flex-1 overflow-y-auto relative" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ddd8cf transparent' }}>
