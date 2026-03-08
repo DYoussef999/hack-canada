@@ -1,19 +1,23 @@
-# ── Web framework ────────────────────────────────────────────────────
+# ── Web framework ──────────────────────────────────────────────────────
 fastapi>=0.111.0
 uvicorn[standard]>=0.29.0
 pydantic>=2.7.0
 
-# ── Backboard.io multi-agent SDK ─────────────────────────────────────
+# ── Backboard.io multi-agent SDK (legacy layer) ─────────────────────────
 backboard-sdk>=1.5.3
 
-# ── Environment & config ─────────────────────────────────────────────
-python-dotenv>=1.0.0
+# ── Google Gemini SDK (new intelligence layer) ──────────────────────────
+google-genai>=1.0.0
 
-# ── HTTP client (Google Places API / future live data enrichment) ────
+# ── HTTP client (all external API calls) ────────────────────────────────
 httpx>=0.27.0
 
-# ── Google Sheets ingestion (optional — for server-side sheet fetch) ──
-# Uncomment + set GOOGLE_API_KEY in .env if the backend fetches sheets.
+# ── Retry + resilience ───────────────────────────────────────────────────
+tenacity>=8.3.0
+
+# ── Environment & config ─────────────────────────────────────────────────
+python-dotenv>=1.0.0
+
+# ── Google Sheets ingestion (optional — uncomment for server-side fetch) ──
 # google-api-python-client>=2.130.0
 # google-auth>=2.29.0
-# google-auth-httplib2>=0.2.0

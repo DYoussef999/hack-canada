@@ -8,6 +8,9 @@ import type {
   CanvasSyncResponse,
   ExpansionResponse,
   ImportSheetsResponse,
+  FinancialHealthReport,
+  MacroTrendsBriefing,
+  GeminiExpansionReport,
 } from '@/types/api';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
@@ -30,13 +33,16 @@ export async function startSession(sessionId: string): Promise<SessionResponse> 
   return post('/session/start', { session_id: sessionId });
 }
 
-/** Push canvas snapshot to the Accountant agent for financial analysis. */
+/** Push canvas snapshot to the Accountant agent for financial analysis.
+ *  `segments` carries the direct-cost linkage map so the Scout agent can
+ *  understand which parts of the business are most scalable for expansion. */
 export async function syncCanvas(
   sessionId: string,
   nodes: unknown[],
-  edges: unknown[]
+  edges: unknown[],
+  segments: unknown[] = []
 ): Promise<CanvasSyncResponse> {
-  return post('/sandbox/sync', { session_id: sessionId, nodes, edges });
+  return post('/sandbox/sync', { session_id: sessionId, nodes, edges, segments });
 }
 
 /** Ask the Scout agent to rank expansion locations. */
@@ -59,4 +65,45 @@ export async function importSheets(
   rows: Record<string, string>[]
 ): Promise<ImportSheetsResponse> {
   return post('/import/sheets', { rows });
+}
+
+// ── Gemini intelligence layer ─────────────────────────────────────────────────
+
+async function get<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail ?? `Request failed (${res.status})`);
+  }
+  return res.json() as Promise<T>;
+}
+
+/** Analyze canvas nodes with Gemini Accountant Agent → FinancialHealthReport. */
+export async function syncCanvasGemini(
+  nodes: unknown[],
+  edges: unknown[]
+): Promise<FinancialHealthReport> {
+  return post('/sync', { nodes, edges });
+}
+
+/** Fetch current BoC + FRED macro briefing (cached 6hr on backend). */
+export async function getMacro(): Promise<MacroTrendsBriefing> {
+  return get('/macro');
+}
+
+export interface CandidateLocation {
+  lat: number;
+  lng: number;
+  city_name: string;
+  business_type: string;
+  monthly_rent: number;
+  census_division: string;
+}
+
+/** Run Scout Agent to rank candidate locations by Viability Score. */
+export async function optimizeLocations(
+  financialReport: FinancialHealthReport,
+  locations: CandidateLocation[]
+): Promise<GeminiExpansionReport> {
+  return post('/optimize', { financial_report: financialReport, locations });
 }

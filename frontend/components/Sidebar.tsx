@@ -7,12 +7,10 @@ interface PaletteItemProps {
   description: string;
   nodeType: string;
   icon: React.ReactNode;
-  borderClass: string;
-  bgClass: string;
+  accentClass: string;
 }
 
-/** A single draggable item in the node palette */
-function PaletteItem({ label, description, nodeType, icon, borderClass, bgClass }: PaletteItemProps) {
+function PaletteItem({ label, description, nodeType, icon, accentClass }: PaletteItemProps) {
   const onDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     e.dataTransfer.setData('application/reactflow', nodeType);
     e.dataTransfer.effectAllowed = 'move';
@@ -22,12 +20,12 @@ function PaletteItem({ label, description, nodeType, icon, borderClass, bgClass 
     <div
       draggable
       onDragStart={onDragStart}
-      className={`flex items-start gap-3 p-3 rounded-lg border-2 ${borderClass} ${bgClass} cursor-grab active:cursor-grabbing hover:brightness-110 transition-all select-none`}
+      className={`flex items-center gap-2.5 p-2.5 rounded-lg border border-slate-800 border-l-2 ${accentClass} bg-slate-800/40 cursor-grab active:cursor-grabbing hover:bg-slate-800/70 transition-colors select-none`}
     >
-      <div className="mt-0.5 shrink-0">{icon}</div>
+      <div className="shrink-0">{icon}</div>
       <div>
-        <p className="text-sm font-semibold text-zinc-100 leading-tight">{label}</p>
-        <p className="text-xs text-zinc-500 mt-0.5 leading-tight">{description}</p>
+        <p className="text-xs font-semibold text-slate-200 leading-tight">{label}</p>
+        <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">{description}</p>
       </div>
     </div>
   );
@@ -37,61 +35,53 @@ interface SidebarProps {
   onImportClick: () => void;
 }
 
-/**
- * Sidebar — the node palette panel.
- * Users drag items from here onto the React Flow canvas to spawn new nodes.
- * Uses the native HTML5 drag-and-drop API — no external DnD library needed.
- */
 export default function Sidebar({ onImportClick }: SidebarProps) {
   return (
-    <aside className="w-56 bg-zinc-900 border-r border-zinc-800 flex flex-col p-4 gap-6 shrink-0 z-10">
+    <aside className="w-52 bg-slate-900/50 backdrop-blur-md border-r border-slate-800 flex flex-col p-3 gap-5 shrink-0 z-10">
       <div>
-        <h2 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">
+        <h2 className="text-[9px] font-bold text-slate-600 uppercase tracking-widest mb-2.5 px-0.5">
           Node Palette
         </h2>
 
-        <div className="space-y-2.5">
+        <div className="space-y-2">
           <PaletteItem
-            label="Add Revenue"
+            label="Revenue Stream"
             description="Sales, grants, subscriptions"
             nodeType="source"
-            icon={<TrendingUp className="w-4 h-4 text-green-400" />}
-            borderClass="border-green-800"
-            bgClass="bg-green-950"
+            icon={<TrendingUp className="w-3.5 h-3.5 text-emerald-400" strokeWidth={1.5} />}
+            accentClass="border-l-emerald-500"
           />
           <PaletteItem
-            label="Add Expense"
+            label="Expense"
             description="Wages, rent, inventory"
             nodeType="expense"
-            icon={<ArrowDownCircle className="w-4 h-4 text-red-400" />}
-            borderClass="border-red-800"
-            bgClass="bg-red-950"
+            icon={<ArrowDownCircle className="w-3.5 h-3.5 text-rose-400" strokeWidth={1.5} />}
+            accentClass="border-l-rose-500"
           />
         </div>
       </div>
 
-      {/* Import CSV */}
       <div>
-        <h2 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">
+        <h2 className="text-[9px] font-bold text-slate-600 uppercase tracking-widest mb-2.5 px-0.5">
           Import
         </h2>
         <button
           onClick={onImportClick}
-          className="w-full flex items-center gap-3 p-3 rounded-lg border-2 border-blue-900 bg-blue-950 hover:brightness-110 transition-all text-left"
+          className="w-full flex items-center gap-2.5 p-2.5 rounded-lg border border-slate-800 border-l-2 border-l-blue-500 bg-slate-800/40 hover:bg-slate-800/70 transition-colors text-left"
         >
-          <FileSpreadsheet className="w-4 h-4 text-blue-400 shrink-0" />
+          <FileSpreadsheet className="w-3.5 h-3.5 text-blue-400 shrink-0" strokeWidth={1.5} />
           <div>
-            <p className="text-sm font-semibold text-zinc-100 leading-tight">Import CSV</p>
-            <p className="text-xs text-zinc-500 mt-0.5 leading-tight">Paste spreadsheet data</p>
+            <p className="text-xs font-semibold text-slate-200 leading-tight">Import CSV</p>
+            <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">Paste spreadsheet data</p>
           </div>
         </button>
       </div>
 
-      <div className="mt-auto flex gap-2 p-3 rounded-lg bg-zinc-800 border border-zinc-700">
-        <Info className="w-3.5 h-3.5 text-zinc-500 shrink-0 mt-0.5" />
-        <p className="text-[11px] text-zinc-500 leading-relaxed">
-          Drag nodes onto the canvas. The{' '}
-          <span className="text-blue-400 font-medium">Financials</span> panel on the right updates instantly.
+      <div className="mt-auto flex gap-2 p-2.5 rounded-lg bg-slate-800/30 border border-slate-800">
+        <Info className="w-3 h-3 text-slate-600 shrink-0 mt-0.5" strokeWidth={1.5} />
+        <p className="text-[10px] text-slate-600 leading-relaxed">
+          Drag onto canvas. The{' '}
+          <span className="text-blue-400">Financials</span> panel updates instantly.
         </p>
       </div>
     </aside>

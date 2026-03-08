@@ -1,18 +1,13 @@
-import type { SourceFlowNode, ExpenseFlowNode, ResultFlowNode, NodeCategory } from '@/types/nodes';
+import type { SourceFlowNode, ExpenseFlowNode, ResultFlowNode, GroupFlowNode, NodeCategory, GroupCategory, GroupNodeData } from '@/types/nodes';
+import { GROUP_W, GROUP_HEADER_H, BUCKET_CONFIG, expandedGroupH } from '@/utils/groupLayout';
 
-/** Stable unique ID using timestamp + increment — safe across HMR reloads */
 let _counter = 0;
 function nextId(): string {
   return `node-${Date.now()}-${++_counter}`;
 }
 
-/** Default canvas position for the singleton ResultNode */
 export const RESULT_NODE_ID = 'result-1';
 
-/**
- * Creates a new SourceNode (revenue stream) at the given canvas position.
- * Supports an optional groupId for future AI-generated cluster groupings.
- */
 export function createSourceNode(
   position: { x: number; y: number },
   groupId?: string
@@ -21,18 +16,10 @@ export function createSourceNode(
     id: nextId(),
     type: 'source',
     position,
-    data: {
-      label: 'Monthly Sales',
-      value: 0,
-      groupId,
-    },
+    data: { label: 'New Revenue', value: 0, groupId },
   };
 }
 
-/**
- * Creates a new ExpenseNode (cost category) at the given canvas position.
- * Supports an optional groupId for future AI-generated cluster groupings.
- */
 export function createExpenseNode(
   position: { x: number; y: number },
   groupId?: string
@@ -41,24 +28,37 @@ export function createExpenseNode(
     id: nextId(),
     type: 'expense',
     position,
-    data: {
-      label: 'New Expense',
-      value: 0,
-      category: 'OpEx' as NodeCategory,
-      groupId,
-    },
+    data: { label: 'New Expense', value: 0, category: 'OpEx' as NodeCategory, groupId },
   };
 }
 
-/**
- * Creates the singleton ResultNode. Only one should exist per canvas.
- * Uses a fixed ID so edges can target it predictably.
- */
 export function createResultNode(position: { x: number; y: number }): ResultFlowNode {
   return {
     id: RESULT_NODE_ID,
     type: 'result',
     position,
     data: {},
+  };
+}
+
+export function createGroupNode(
+  category: GroupCategory,
+  position: { x: number; y: number },
+  childCount = 0
+): GroupFlowNode {
+  const cfg = BUCKET_CONFIG[category];
+  return {
+    id:       `group-${category}`,
+    type:     'group',
+    position,
+    style:    { width: GROUP_W, height: expandedGroupH(childCount) },
+    data: {
+      label:         cfg.label,
+      groupCategory: category,
+      collapsed:     false,
+      colorClass:    cfg.colorClass,
+    } as GroupNodeData,
+    selectable: true,
+    draggable:  true,
   };
 }

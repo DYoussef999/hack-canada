@@ -1,17 +1,22 @@
 """
 main.py — Compass AI FastAPI backend.
 
-Endpoints
-─────────
-POST /session/start         Initialize a Backboard thread pair (accountant + scout).
-POST /sandbox/sync          Send React Flow canvas to the Accountant agent for analysis.
-POST /optimize/expansion    Run the Scout's multi-turn location optimization loop.
-POST /import/sheets         Parse raw spreadsheet rows into React Flow nodes via LLM.
+Endpoints (new Gemini intelligence layer)
+──────────────────────────────────────────
+GET  /health               Ping all 8 external APIs and report status.
+POST /sync                 Accountant Agent: analyze React Flow canvas.
+POST /optimize             Scout Agent: rank candidate locations by Viability Score.
+GET  /macro                Current BoC + FRED macro briefing (cached 6hr).
 
-Legacy routes (/sandbox/simulate, /optimizer, /dashboard) are preserved so the
-existing frontend doesn't break during this transition.
+Legacy Backboard endpoints (preserved — frontend still works during transition)
+──────────────────────────────────────────────────────────────────────────────
+POST /session/start        Initialize Backboard thread pair.
+POST /sandbox/sync         Backboard Accountant sync.
+POST /optimize/expansion   Backboard Scout location optimization.
+POST /import/sheets        Backboard CSV ingestor.
 """
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from typing import Any
@@ -20,15 +25,29 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-import agents
+import agents  # existing Backboard agents
 from routes import dashboard, optimizer
 from routes import sandbox as legacy_sandbox
+
+# New Gemini intelligence layer routers
+from routers import sync as sync_router
+from routers import optimize as optimize_router
+
+# Health-check services
+from services import (
+    bankofcanada_service,
+    fred_service,
+    square_service,
+    statscan_service,
+    upc_service,
+)
+# besttime_service / mapbox_service excluded — owned by map/foot-traffic team
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(message)s")
 log = logging.getLogger(__name__)
 
 
-# ── Lifespan: create/reuse Backboard assistants once at startup ──────────────────
+# ── Lifespan ──────────────────────────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -38,62 +57,58 @@ async def lifespan(_: FastAPI):
     yield
 
 
-# ── App ──────────────────────────────────────────────────────────────────────────
+# ── App ───────────────────────────────────────────────────────────────────────
 
 app = FastAPI(
     title="Compass AI API",
     description="Multi-agent financial sandbox backend for Hack Canada 2026",
-    version="2.0.0",
+    version="2.1.0",
     lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",   # Vite dev server
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Legacy routes — keep /sandbox/simulate, /optimizer, /dashboard working
+# ── New Gemini intelligence routes ────────────────────────────────────────────
+app.include_router(sync_router.router,     tags=["Accountant"])
+app.include_router(optimize_router.router, tags=["Scout"])
+
+# ── Legacy Backboard routes ───────────────────────────────────────────────────
 app.include_router(legacy_sandbox.router, prefix="/sandbox",   tags=["Legacy"])
 app.include_router(optimizer.router,      prefix="/optimizer", tags=["Legacy"])
 app.include_router(dashboard.router,      prefix="/dashboard", tags=["Legacy"])
 
 
-# ── Request models ───────────────────────────────────────────────────────────────
+# ── Legacy Backboard request models + endpoints ───────────────────────────────
 
 class SessionStartRequest(BaseModel):
     session_id: str = Field(..., description="Unique session identifier (UUID from frontend)")
 
 
-class CanvasSyncRequest(BaseModel):
-    session_id: str
-    nodes: list[dict[str, Any]] = Field(..., description="React Flow nodes array")
-    edges: list[dict[str, Any]] = Field(default_factory=list)
-
-
 class ExpansionRequest(BaseModel):
     session_id:    str
-    target_cities: list[str] = Field(..., min_length=1, description="Ontario cities to evaluate")
-    business_type: str       = Field(..., description="e.g. 'coffee shop', 'restaurant'")
-    deep_analysis: bool      = Field(False, description="True → claude-3-5-sonnet | False → gemini-2.0-flash")
+    target_cities: list[str] = Field(..., min_length=1)
+    business_type: str
+    deep_analysis: bool = Field(False)
 
 
 class SheetsImportRequest(BaseModel):
-    rows:     list[dict[str, Any]] = Field(..., description="Raw spreadsheet rows as list of dicts")
-    sheet_id: str | None           = Field(None, description="Google Sheet ID (reserved for server-side fetch)")
+    rows:     list[dict[str, Any]] = Field(...)
+    sheet_id: str | None = Field(None)
 
-
-# ── AI endpoints ─────────────────────────────────────────────────────────────────
 
 @app.post("/session/start", tags=["Session"])
 async def session_start(body: SessionStartRequest) -> dict:
-    """
-    Initialize a Backboard thread pair for a new user session.
-    Returns accountant_thread_id and scout_thread_id.
-    If the session_id already exists, the existing threads are returned (resume).
-    """
     try:
         return await agents.start_session(body.session_id)
     except Exception as exc:
@@ -101,35 +116,8 @@ async def session_start(body: SessionStartRequest) -> dict:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=str(exc))
 
 
-@app.post("/sandbox/sync", tags=["Accountant"])
-async def sandbox_sync(body: CanvasSyncRequest) -> dict:
-    """
-    Send the current React Flow canvas state to the Accountant agent.
-
-    - Computes burn rate, gross margin, health score for the canvas snapshot.
-    - Auto-saves Financial Health markers to Backboard memory (Scout reads these).
-    - Model: gemini-2.0-flash — fast enough for live canvas edits.
-    """
-    try:
-        return await agents.accountant_sync_canvas(body.session_id, body.nodes, body.edges)
-    except ValueError as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc))
-    except Exception as exc:
-        log.exception("sandbox/sync failed")
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=str(exc))
-
-
 @app.post("/optimize/expansion", tags=["Scout"])
 async def optimize_expansion(body: ExpansionRequest) -> dict:
-    """
-    Trigger the Scout's multi-turn location optimization loop.
-
-    1. Scout reads Accountant's shared memory for budget constraints (semantic recall).
-    2. Scout calls search_locations tool for each target city.
-    3. Scout ranks by Viability Score: Ve = (P_rev × D_demo) / ((C_rent × S_comp) + O_fixed).
-
-    deep_analysis=True hot-swaps to claude-3-5-sonnet for strategic narrative depth.
-    """
     try:
         return await agents.scout_optimize_expansion(
             body.session_id, body.target_cities, body.business_type, body.deep_analysis
@@ -143,14 +131,6 @@ async def optimize_expansion(body: ExpansionRequest) -> dict:
 
 @app.post("/import/sheets", tags=["Ingestor"])
 async def import_sheets(body: SheetsImportRequest) -> dict:
-    """
-    Convert raw spreadsheet rows into typed React Flow nodes via LLM.
-
-    - Classifies each row as revenue source or expense.
-    - Applies Canadian SMB categorization (Staff / Overhead / OpEx).
-    - Normalizes amounts to monthly CAD values.
-    - Returns nodes[] + edges[] ready to hydrate the canvas.
-    """
     if not body.rows:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="rows must not be empty")
     try:
@@ -160,8 +140,50 @@ async def import_sheets(body: SheetsImportRequest) -> dict:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=str(exc))
 
 
-# ── Health ───────────────────────────────────────────────────────────────────────
+# ── Health check ──────────────────────────────────────────────────────────────
+
+@app.get("/health", tags=["Health"])
+async def health() -> dict[str, str]:
+    """
+    Ping all 8 external APIs and return their status.
+    A result of "ok" means the API responded successfully.
+    Partial failures are acceptable — at least 5/8 should be ok in demo mode.
+    """
+    results = await asyncio.gather(
+        _check_gemini(),
+        statscan_service.health_check(),
+        bankofcanada_service.health_check(),
+        fred_service.health_check(),
+        square_service.health_check(),
+        upc_service.health_check(),
+        return_exceptions=True,
+    )
+    keys = ["gemini", "statscanada", "bank_of_canada", "fred", "square_sandbox", "upc_itemdb"]
+    return {
+        key: (str(r) if isinstance(r, Exception) else r)
+        for key, r in zip(keys, results)
+    }
+
+
+async def _check_gemini() -> str:
+    """Verify Gemini API key is configured and the SDK can list models."""
+    from config import config
+    if not config.gemini_api_key:
+        return "error: GEMINI_API_KEY not configured"
+    try:
+        from google import genai
+        client = genai.Client(api_key=config.gemini_api_key)
+        # list_models is a lightweight call that validates the key
+        models = [m async for m in await client.aio.models.list()]
+        return "ok" if models else "error: no models returned"
+    except Exception as exc:
+        return f"error: {exc}"
+
+
+# ── Root ──────────────────────────────────────────────────────────────────────
 
 @app.get("/", tags=["Health"])
 def root():
-    return {"status": "ok", "service": "Compass AI API v2.0"}
+    return {"status": "ok", "service": "Compass AI API v2.1", "docs": "/docs"}
+
+ 
