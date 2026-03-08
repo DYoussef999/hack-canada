@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { TrendingUp, ArrowDownCircle } from 'lucide-react';
 import type { CanvasFinancials, ExpenseBreakdownItem } from '@/hooks/useCanvasFinancials';
-import type { AccountantAnalysis, SyncStatus } from '@/types/api';
+import type { AccountantAnalysis, FinancialHealthReport, MacroTrendsBriefing, SyncStatus } from '@/types/api';
 import type { NodeCategory, SegmentResult } from '@/types/nodes';
 import InsightsTab from '@/components/tabs/InsightsTab';
 import OptimizationTab from '@/components/tabs/OptimizationTab';
+import { getMacro } from '@/services/compassApi';
 
 type TabId = 'financials' | 'optimization' | 'insights';
 const TABS: { id: TabId; label: string }[] = [
@@ -48,21 +49,16 @@ function CategoryBar({ category, value, total }: { category: NodeCategory; value
   );
 }
 
-// ── Segment Profitability Card ─────────────────────────────────────────────────
-
 function SegmentCard({ seg }: { seg: SegmentResult }) {
   const isPositive = seg.grossMargin >= 0;
   return (
     <div className="rounded-lg border border-slate-800 overflow-hidden">
-      {/* Header row */}
       <div className="flex items-center justify-between px-2.5 py-2 bg-slate-800/40 border-b border-slate-800">
         <span className="text-[10px] font-semibold text-slate-300 truncate flex-1 pr-2">{seg.label}</span>
         <span className={`text-[10px] font-bold tabular-nums shrink-0 ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
           {fmtCAD(seg.grossMargin)}
         </span>
       </div>
-
-      {/* Stats */}
       <div className="px-2.5 py-2 space-y-1.5">
         <div className="flex justify-between text-[10px]">
           <span className="text-slate-600">Revenue</span>
@@ -72,8 +68,6 @@ function SegmentCard({ seg }: { seg: SegmentResult }) {
           <span className="text-slate-600">Direct Costs</span>
           <span className="text-amber-500 tabular-nums">{fmtCAD(seg.directCosts)}</span>
         </div>
-
-        {/* Margin bar */}
         <div>
           <div className="flex justify-between text-[10px] mb-1">
             <span className="text-slate-600">Gross Margin</span>
@@ -88,8 +82,6 @@ function SegmentCard({ seg }: { seg: SegmentResult }) {
             />
           </div>
         </div>
-
-        {/* Linked expense line items */}
         {seg.linkedExpenses.length > 0 && (
           <div className="pt-1 space-y-0.5 border-t border-slate-800/60">
             {seg.linkedExpenses.map((exp, i) => (
@@ -104,8 +96,6 @@ function SegmentCard({ seg }: { seg: SegmentResult }) {
     </div>
   );
 }
-
-// ── Expense Row ────────────────────────────────────────────────────────────────
 
 function ExpenseRow({ item, total }: { item: ExpenseBreakdownItem; total: number }) {
   const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
@@ -129,34 +119,22 @@ function FinancialsTab({ f, syncStatus }: { f: CanvasFinancials; syncStatus: Syn
   const isPositive = netProfit >= 0;
   const margin = revenue > 0 ? Math.round((netProfit / revenue) * 100) : 0;
 
-  // Aggregate by category for the Quotua bar section
   const catTotals: Record<NodeCategory, number> = { Staff: 0, Overhead: 0, OpEx: 0 };
-  for (const item of expenseBreakdown) {
-    catTotals[item.category] += item.value;
-  }
+  for (const item of expenseBreakdown) catTotals[item.category] += item.value;
   const hasExpenses = totalExpenses > 0;
 
   return (
     <div className="flex-1 overflow-y-auto">
-      {/* ── Hero Header ── */}
       <div className="p-4 border-b border-slate-800">
         <div className="flex items-center justify-between mb-3">
           <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Monthly Net Profit</p>
-          {syncStatus === 'syncing' && (
-            <span className="text-[9px] text-blue-400 animate-pulse">AI syncing…</span>
-          )}
-          {syncStatus === 'synced' && (
-            <span className="text-[9px] text-emerald-500">● synced</span>
-          )}
-          {syncStatus === 'error' && (
-            <span className="text-[9px] text-slate-700">● offline</span>
-          )}
+          {syncStatus === 'syncing' && <span className="text-[9px] text-blue-400 animate-pulse">AI syncing…</span>}
+          {syncStatus === 'synced'  && <span className="text-[9px] text-emerald-500">● synced</span>}
+          {syncStatus === 'error'   && <span className="text-[9px] text-slate-700">● offline</span>}
         </div>
-
         <p className={`text-3xl font-black tabular-nums leading-none tracking-tight ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
           {fmtCAD(netProfit)}
         </p>
-
         <div className="mt-3 grid grid-cols-2 gap-2">
           <div className="bg-slate-800/40 rounded-lg p-2 border border-slate-800">
             <div className="flex items-center gap-1 mb-0.5">
@@ -173,7 +151,6 @@ function FinancialsTab({ f, syncStatus }: { f: CanvasFinancials; syncStatus: Syn
             <p className="text-sm font-bold text-rose-400 tabular-nums">{fmtCAD(totalExpenses)}</p>
           </div>
         </div>
-
         {revenue > 0 && (
           <div className="mt-3">
             <div className="flex justify-between text-[10px] mb-1">
@@ -190,13 +167,10 @@ function FinancialsTab({ f, syncStatus }: { f: CanvasFinancials; syncStatus: Syn
         )}
       </div>
 
-      {/* ── Cost Breakdown Bars ── */}
       <div className="p-4 border-b border-slate-800">
         <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest mb-3">Cost Breakdown</p>
         {!hasExpenses ? (
-          <p className="text-[10px] text-slate-700 text-center py-4 italic">
-            Add an expense node to see breakdown
-          </p>
+          <p className="text-[10px] text-slate-700 text-center py-4 italic">Add an expense node to see breakdown</p>
         ) : (
           <div className="space-y-3">
             {(Object.keys(catTotals) as NodeCategory[])
@@ -208,7 +182,6 @@ function FinancialsTab({ f, syncStatus }: { f: CanvasFinancials; syncStatus: Syn
         )}
       </div>
 
-      {/* ── Segment Profitability ── */}
       {segments.length > 0 && (
         <div className="p-4 border-b border-slate-800">
           <div className="flex items-center gap-1.5 mb-3">
@@ -218,14 +191,11 @@ function FinancialsTab({ f, syncStatus }: { f: CanvasFinancials; syncStatus: Syn
             </span>
           </div>
           <div className="space-y-2">
-            {segments.map((seg) => (
-              <SegmentCard key={seg.id} seg={seg} />
-            ))}
+            {segments.map((seg) => <SegmentCard key={seg.id} seg={seg} />)}
           </div>
         </div>
       )}
 
-      {/* ── Line Items ── */}
       {expenseBreakdown.length > 0 && (
         <div className="p-4">
           <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest mb-2">All Line Items</p>
@@ -244,12 +214,19 @@ interface Props {
   financials: CanvasFinancials;
   sessionId: string | null;
   aiAnalysis: AccountantAnalysis | null;
+  geminiReport: FinancialHealthReport | null;
   syncStatus: SyncStatus;
 }
 
-export default function SummarySidebar({ financials, sessionId, aiAnalysis, syncStatus }: Props) {
+export default function SummarySidebar({ financials, sessionId, aiAnalysis, geminiReport, syncStatus }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>('financials');
+  const [macro, setMacro] = useState<MacroTrendsBriefing | null>(null);
   const backendOnline = syncStatus !== 'error';
+
+  // Fetch macro trends once on mount (cached 6hr on backend)
+  useEffect(() => {
+    getMacro().then(setMacro).catch(() => {});
+  }, []);
 
   return (
     <aside className="w-72 bg-slate-900/50 backdrop-blur-md border-l border-slate-800 flex flex-col shrink-0 overflow-hidden">
@@ -273,10 +250,19 @@ export default function SummarySidebar({ financials, sessionId, aiAnalysis, sync
         <FinancialsTab f={financials} syncStatus={syncStatus} />
       )}
       {activeTab === 'optimization' && (
-        <OptimizationTab sessionId={sessionId} backendOnline={backendOnline} />
+        <OptimizationTab
+          backendOnline={backendOnline}
+          financialReport={geminiReport}
+          syncStatus={syncStatus}
+        />
       )}
       {activeTab === 'insights' && (
-        <InsightsTab analysis={aiAnalysis} syncStatus={syncStatus} />
+        <InsightsTab
+          analysis={aiAnalysis}
+          geminiReport={geminiReport}
+          macro={macro}
+          syncStatus={syncStatus}
+        />
       )}
     </aside>
   );

@@ -40,9 +40,9 @@ import {
 } from '@/utils/groupLayout';
 import { useCanvasFinancials } from '@/hooks/useCanvasFinancials';
 import { useSession }          from '@/hooks/useSession';
-import { syncCanvas }          from '@/services/compassApi';
+import { syncCanvas, syncCanvasGemini } from '@/services/compassApi';
 import type { AnyNodeData, GroupNodeData } from '@/types/nodes';
-import type { AccountantAnalysis, SyncStatus } from '@/types/api';
+import type { AccountantAnalysis, FinancialHealthReport, SyncStatus } from '@/types/api';
 
 // ── Edge helpers ──────────────────────────────────────────────────────────────
 
@@ -133,8 +133,9 @@ export default function FinancialSandbox() {
   const [showImport, setShowImport]      = useState(false);
 
   // AI state
-  const [aiAnalysis, setAiAnalysis] = useState<AccountantAnalysis | null>(null);
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
+  const [aiAnalysis, setAiAnalysis]   = useState<AccountantAnalysis | null>(null);
+  const [geminiReport, setGeminiReport] = useState<FinancialHealthReport | null>(null);
+  const [syncStatus, setSyncStatus]   = useState<SyncStatus>('idle');
   const syncTimerRef                = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { sessionId, error: sessionError } = useSession();
@@ -152,26 +153,40 @@ export default function FinancialSandbox() {
 
   // ── Debounced AI canvas sync ───────────────────────────────────────────────
   useEffect(() => {
-    if (!sessionId || syncStatus === 'error') return;
+    if (!sessionId) return;
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    
     syncTimerRef.current = setTimeout(async () => {
       setSyncStatus('syncing');
-      try {
-        const result = await syncCanvas(
-          sessionId,
-          nodes as unknown[],
-          edges as unknown[],
-          financials.segments as unknown[]
-        );
-        setAiAnalysis(result.analysis);
-        setSyncStatus('synced');
-      } catch {
-        setSyncStatus('error');
+      
+      // Filter out group nodes — the Accountant agents only care about 
+      // nodes with financial values (source/expense).
+      const financialNodes = nodes.filter(n => n.type === 'source' || n.type === 'expense');
+      
+      const [backboardResult, geminiResult] = await Promise.allSettled([
+        syncCanvas(sessionId, financialNodes as unknown[], edges as unknown[], financials.segments as unknown[]),
+        syncCanvasGemini(financialNodes as unknown[], edges as unknown[]),
+      ]);
+
+      let backboardOk = false;
+      let geminiOk    = false;
+
+      if (backboardResult.status === 'fulfilled') {
+        setAiAnalysis(backboardResult.value.analysis);
+        backboardOk = true;
       }
+      
+      if (geminiResult.status === 'fulfilled') {
+        setGeminiReport(geminiResult.value);
+        geminiOk = true;
+      }
+
+      setSyncStatus(backboardOk || geminiOk ? 'synced' : 'error');
     }, SYNC_DEBOUNCE_MS);
+
     return () => { if (syncTimerRef.current) clearTimeout(syncTimerRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, sessionId]);
+  }, [nodes, edges, sessionId]);
 
   // ── onConnect ─────────────────────────────────────────────────────────────
   const onConnect = useCallback(
@@ -384,6 +399,7 @@ export default function FinancialSandbox() {
         financials={financials}
         sessionId={sessionId}
         aiAnalysis={aiAnalysis}
+        geminiReport={geminiReport}
         syncStatus={syncStatus}
       />
 
