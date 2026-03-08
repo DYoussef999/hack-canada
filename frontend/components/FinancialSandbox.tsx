@@ -139,7 +139,7 @@ export default function FinancialSandbox() {
   // Node selection state
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
-  const { sessionId, error: sessionError } = useSession();
+  const { sessionId, session, error: sessionError } = useSession();
   const financials = useCanvasFinancials(nodes, edges);
 
   // Helper to find all nodes connected to a given node (recursively)
@@ -188,7 +188,8 @@ export default function FinancialSandbox() {
 
   // ── Debounced AI canvas sync ───────────────────────────────────────────────
   useEffect(() => {
-    if (!sessionId) return;
+    // Wait for session to be fully created on backend (not just sessionId)
+    if (!sessionId || !session) return;
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     
     syncTimerRef.current = setTimeout(async () => {
@@ -226,7 +227,7 @@ export default function FinancialSandbox() {
 
     return () => { if (syncTimerRef.current) clearTimeout(syncTimerRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, sessionId]);
+  }, [nodes, edges, sessionId, session]);
 
   // ── onConnect ─────────────────────────────────────────────────────────────
   const onConnect = useCallback(

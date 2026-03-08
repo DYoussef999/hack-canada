@@ -32,12 +32,12 @@ class AutoWireResponse(BaseModel):
 @router.post(
     "/canvas/auto-wire",
     response_model=AutoWireResponse,
-    summary="Auto-wire unconnected expenses using Backboard Wire Matcher",
+    summary="Auto-wire unconnected expenses using Gemini Wire Matcher",
     tags=["Canvas"],
 )
 async def auto_wire(body: dict[str, Any]) -> AutoWireResponse:
     """
-    Use Backboard Wire Matcher agent to intelligently wire expenses to revenue streams.
+    Use Gemini Wire Matcher agent to intelligently wire expenses to revenue streams.
 
     Takes:
     - revenue_nodes: list of revenue stream nodes with user-defined labels
@@ -49,7 +49,7 @@ async def auto_wire(body: dict[str, Any]) -> AutoWireResponse:
     revenue_nodes = body.get("revenue_nodes", [])
     expense_nodes = body.get("expense_nodes", [])
 
-    log.info(f"auto_wire: Backboard matching with {len(revenue_nodes)} revenue, {len(expense_nodes)} expenses")
+    log.info(f"auto_wire: Gemini matching with {len(revenue_nodes)} revenue, {len(expense_nodes)} expenses")
 
     if not expense_nodes:
         log.info("auto_wire: no expense nodes, returning empty")
@@ -68,10 +68,10 @@ async def auto_wire(body: dict[str, Any]) -> AutoWireResponse:
             WireMapping(source=m["source"], target=m["target"])
             for m in result.get("mappings", [])
         ]
-        log.info(f"auto_wire: ✓ generated {len(mappings)} mappings via Backboard")
+        log.info(f"auto_wire: ✓ generated {len(mappings)} mappings via Backboard Wire Matcher")
         return AutoWireResponse(mappings=mappings)
     except Exception as e:
-        log.exception("auto_wire: Backboard agent error")
+        log.exception("auto_wire: Backboard Wire Matcher error")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Auto-wire service error: {e}",
