@@ -1,6 +1,7 @@
 'use client';
 
-import { AlertTriangle, TrendingDown, Heart, BarChart2, Brain, TrendingUp, DollarSign, Activity } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { AlertTriangle, TrendingDown, Heart, BarChart2, Brain, TrendingUp, DollarSign, Activity, MapPin } from 'lucide-react';
 import type { AccountantAnalysis, FinancialHealthReport, MacroTrendsBriefing, SyncStatus } from '@/types/api';
 
 const fmtCAD = (v: number) =>
@@ -82,6 +83,7 @@ interface Props {
 }
 
 export default function InsightsTab({ analysis, geminiReport, macro, syncStatus }: Props) {
+  const router = useRouter();
   if (syncStatus === 'syncing' && !geminiReport && !analysis) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center">
@@ -164,7 +166,26 @@ export default function InsightsTab({ analysis, geminiReport, macro, syncStatus 
         {breakEven > 0 && (
           <MetricRow label="Break-Even Revenue" value={fmtCAD(breakEven)} color="text-amber-600" />
         )}
-        <MetricRow label="Max Affordable Rent" value={fmtCAD(maxRent)} color="text-blue-600" />
+        <div className="flex justify-between items-center py-1.5" style={{ borderBottom: '1px solid var(--forest-rim)' }}>
+          <span className="text-xs" style={{ color: 'var(--moss)' }}>Max Affordable Rent</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold tabular-nums text-blue-600">{fmtCAD(maxRent)}</span>
+            <button
+              disabled={!maxRent}
+              onClick={() => router.push(`/expansion?rent=${maxRent}`)}
+              title={!maxRent ? 'Run AI analysis first to enable this' : 'Project in Map'}
+              className="inline-flex items-center justify-center rounded-full transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:scale-110"
+              style={{
+                width: 22,
+                height: 22,
+                background: maxRent ? '#3d8b24' : 'var(--forest-rim)',
+                color: '#fff',
+              }}
+            >
+              <MapPin className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Cost risks */}

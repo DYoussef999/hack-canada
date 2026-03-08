@@ -469,13 +469,13 @@ export default function FinancialSandbox() {
       const revenueNodeData = revenueNodes.map(n => ({
         id: n.id,
         label: (n.data as any).label || `Revenue ${n.id}`,
-        type: n.type,
+        type: n.type as string,
       }));
 
       const expenseNodeData = unconnectedExpenses.map(n => ({
         id: n.id,
         label: (n.data as any).label || `Expense ${n.id}`,
-        type: n.type,
+        type: n.type as string,
         category: (n.data as any).category,
       }));
 
@@ -581,10 +581,11 @@ export default function FinancialSandbox() {
             });
 
             if (bestMatch) {
+              const matched = bestMatch as Node<AnyNodeData>;
               console.log(
-                `[AutoWire] Merging unconnected revenue "${unconnectedLabel}" (${bestScore}% match) into "${(bestMatch.data as any).label}"`
+                `[AutoWire] Merging unconnected revenue "${unconnectedLabel}" (${bestScore}% match) into "${(matched.data as any).label}"`
               );
-              mergeMap.set(unconnectedNode.id, bestMatch.id);
+              mergeMap.set(unconnectedNode.id, matched.id);
             }
           });
 
