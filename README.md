@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-# Plutos
-=======
 # Ploutos
->>>>>>> 910f126dc1baf64cde8e9b5b07b5b61b5dc5731f
 
 **Visual Financial Sandbox for Canadian SMBs.** Built for Hack Canada 2026.
 
