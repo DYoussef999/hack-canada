@@ -23,7 +23,7 @@ function buildActivity(metrics, locations) {
 }
 
 const TABS = [
-  { key: "home", label: "Home" },
+  { key: "home", label: "Dashboard" },
   { key: "sandbox", label: "Sandbox", href: "/sandbox" },
   { key: "expansion", label: "Expansion", href: "/expansion" },
 ];
@@ -117,7 +117,7 @@ export default function DashboardPage() {
             fontSize: "20px", fontWeight: "700",
             color: "var(--forest)", letterSpacing: "-0.02em",
           }}>
-            LaunchPad <span style={{ color: "var(--sage)" }}>AI</span>
+            Ploutos
           </span>
         </Link>
 

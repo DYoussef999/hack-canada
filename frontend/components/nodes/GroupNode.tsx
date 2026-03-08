@@ -11,10 +11,10 @@ const fmtCAD = (v: number) =>
   new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 }).format(v);
 
 const ACCENT: Record<GroupCategory, { indicator: string; header: string; text: string }> = {
-  revenue:  { indicator: 'bg-emerald-500', header: 'bg-emerald-500/10', text: 'text-emerald-400' },
-  fixed:    { indicator: 'bg-violet-500',  header: 'bg-violet-500/10',  text: 'text-violet-400'  },
-  variable: { indicator: 'bg-rose-500',    header: 'bg-rose-500/10',    text: 'text-rose-400'    },
-  labor:    { indicator: 'bg-orange-500',  header: 'bg-orange-500/10',  text: 'text-orange-400'  },
+  revenue:  { indicator: 'bg-emerald-500', header: 'bg-emerald-50',  text: 'text-emerald-700' },
+  fixed:    { indicator: 'bg-violet-500',  header: 'bg-violet-50',   text: 'text-violet-700'  },
+  variable: { indicator: 'bg-rose-500',    header: 'bg-rose-50',     text: 'text-rose-700'    },
+  labor:    { indicator: 'bg-orange-500',  header: 'bg-orange-50',   text: 'text-orange-700'  },
 };
 
 export default function GroupNode({ id, data }: NodeProps<GroupNodeData>) {
@@ -48,23 +48,27 @@ export default function GroupNode({ id, data }: NodeProps<GroupNodeData>) {
 
   return (
     <div
-      className="w-full h-full rounded-lg border border-slate-700 bg-slate-900 overflow-hidden"
-      style={{ minHeight: GROUP_HEADER_H }}
+      className="w-full h-full rounded-lg overflow-hidden"
+      style={{
+        background: '#ffffff',
+        border: '1px solid var(--forest-rim)',
+        minHeight: GROUP_HEADER_H,
+      }}
     >
-      {/* Group-level port handles — one per side, representing the aggregate total */}
+      {/* Group-level port handles */}
       <Handle
         type="target"
         position={Position.Left}
         id="group-in"
         style={{ top: GROUP_HEADER_H / 2 }}
-        className="!w-2 !h-2 !bg-slate-600 !border !border-slate-500 !rounded-sm"
+        className="!w-2 !h-2 !bg-[var(--moss)] !border !border-[var(--forest)] !rounded-sm"
       />
       <Handle
         type="source"
         position={Position.Right}
         id="group-out"
         style={{ top: GROUP_HEADER_H / 2 }}
-        className="!w-2 !h-2 !bg-slate-600 !border !border-slate-500 !rounded-sm"
+        className="!w-2 !h-2 !bg-[var(--moss)] !border !border-[var(--forest)] !rounded-sm"
       />
 
       {/* Accent indicator line */}
@@ -72,7 +76,8 @@ export default function GroupNode({ id, data }: NodeProps<GroupNodeData>) {
 
       {/* Header */}
       <div
-        className={`flex items-center justify-between px-3 py-2.5 border-b border-slate-800/70 ${accent.header} cursor-pointer select-none`}
+        className={`flex items-center justify-between px-3 py-2.5 ${accent.header} cursor-pointer select-none`}
+        style={{ borderBottom: '1px solid var(--forest-rim)' }}
         onClick={toggleCollapse}
       >
         <div className="flex items-center gap-1.5">
@@ -81,7 +86,7 @@ export default function GroupNode({ id, data }: NodeProps<GroupNodeData>) {
             {data.label}
           </span>
           {count > 0 && (
-            <span className="text-[10px] text-slate-600 tabular-nums">
+            <span className="text-[10px] tabular-nums" style={{ color: 'var(--moss)' }}>
               ({count})
             </span>
           )}
@@ -92,8 +97,8 @@ export default function GroupNode({ id, data }: NodeProps<GroupNodeData>) {
             {fmtCAD(total)}
           </span>
           {data.collapsed
-            ? <ChevronRight className="w-3 h-3 text-slate-600" strokeWidth={1.5} />
-            : <ChevronDown  className="w-3 h-3 text-slate-600" strokeWidth={1.5} />
+            ? <ChevronRight className="w-3 h-3" style={{ color: 'var(--moss)' }} strokeWidth={1.5} />
+            : <ChevronDown  className="w-3 h-3" style={{ color: 'var(--moss)' }} strokeWidth={1.5} />
           }
         </div>
       </div>
@@ -110,7 +115,7 @@ export default function GroupNode({ id, data }: NodeProps<GroupNodeData>) {
       {/* Empty state */}
       {!data.collapsed && count === 0 && (
         <div className="flex items-center justify-center py-4">
-          <p className="text-[10px] text-slate-700 italic">Drag nodes here or use Import CSV</p>
+          <p className="text-[10px] italic" style={{ color: 'var(--moss)' }}>Drag nodes here or use Import CSV</p>
         </div>
       )}
     </div>

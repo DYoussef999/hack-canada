@@ -5,7 +5,7 @@ import { startSession } from '@/services/compassApi';
 import type { SessionResponse } from '@/types/api';
 
 function getOrCreateSessionId(): string {
-  const key = 'compass_session_id';
+  const key = 'ploutos_session_id';
   let id = localStorage.getItem(key);
   if (!id) {
     id = crypto.randomUUID();

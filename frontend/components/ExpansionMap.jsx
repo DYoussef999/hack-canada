@@ -155,15 +155,15 @@ function injectStyles() {
   const style = document.createElement('style');
   style.textContent = `
     .expansion-popup .mapboxgl-popup-content {
-      background: #0f172a !important;
-      border: 1px solid #334155;
+      background: #e8e3db !important;
+      border: 1px solid #ddd8cf;
       border-radius: 10px;
       padding: 0;
-      box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+      box-shadow: 0 10px 30px rgba(26,46,18,0.12);
     }
-    .expansion-popup .mapboxgl-popup-tip { border-top-color: #0f172a !important; }
+    .expansion-popup .mapboxgl-popup-tip { border-top-color: #e8e3db !important; }
     .expansion-popup .mapboxgl-popup-close-button {
-      color: #94a3b8;
+      color: #3e6b2a;
       font-size: 18px;
       padding: 6px 10px;
       line-height: 1;
@@ -171,11 +171,11 @@ function injectStyles() {
       border-radius: 0 10px 0 0;
     }
     .expansion-popup .mapboxgl-popup-close-button:hover {
-      color: #f1f5f9;
-      background: rgba(255,255,255,0.08);
+      color: #1a2e12;
+      background: rgba(26,46,18,0.06);
     }
-    .loc-card:hover { background: rgba(255,255,255,0.06) !important; }
-    .loc-card.active { background: rgba(34,197,94,0.1) !important; border-color: rgba(34,197,94,0.4) !important; }
+    .loc-card:hover { background: rgba(26,46,18,0.04) !important; }
+    .loc-card.active { background: rgba(61,139,36,0.08) !important; border-color: rgba(61,139,36,0.4) !important; }
   `;
   document.head.appendChild(style);
 }
@@ -211,7 +211,7 @@ export default function ExpansionMap() {
 
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
-      style: 'mapbox://styles/mapbox/dark-v11',
+      style: 'mapbox://styles/mapbox/light-v11',
       center: [-80.5004, 43.4600],
       zoom: 12,
       pitch: 30,
@@ -234,7 +234,7 @@ export default function ExpansionMap() {
         type: 'fill-extrusion',
         minzoom: 12,
         paint: {
-          'fill-extrusion-color': '#1a1a2e',
+          'fill-extrusion-color': '#d1cec8',
           'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'height']],
           'fill-extrusion-base': ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'min_height']],
           'fill-extrusion-opacity': 0.85,
@@ -375,9 +375,9 @@ export default function ExpansionMap() {
       popupRef.current = new mapboxgl.Popup({ offset: 30, className: 'expansion-popup', closeButton: true })
         .setLngLat([recSnapshot.longitude, recSnapshot.latitude])
         .setHTML(`
-          <div style="font-family:'Inter',sans-serif;padding:14px;min-width:230px;color:#f1f5f9;">
+          <div style="font-family:'Inter',sans-serif;padding:14px;min-width:230px;color:#1a2e12;">
             <h3 style="margin:0 0 4px;font-size:15px;font-weight:700;">${recSnapshot.name}</h3>
-            <p style="margin:0 0 10px;font-size:11px;color:#64748b;">${recSnapshot.address}</p>
+            <p style="margin:0 0 10px;font-size:11px;color:#3e6b2a;">${recSnapshot.address}</p>
             <div style="display:flex;flex-direction:column;gap:5px;font-size:12px;">
               <div>🎯 <b>Score:</b> <span style="color:${getScoreColor(recSnapshot.opportunity_score)};font-weight:700;">${recSnapshot.opportunity_score}/100 · ${getScoreLabel(recSnapshot.opportunity_score)}</span></div>
               <div>🏠 <b>Est. Rent:</b> $${recSnapshot.estimated_rent.toLocaleString()}/mo</div>
@@ -471,16 +471,17 @@ export default function ExpansionMap() {
 
       {/* ── Left Sidebar ── */}
       <div className="absolute top-16 left-0 bottom-0 w-80 z-10 flex flex-col pointer-events-auto"
-        style={{ background: 'rgba(10,14,28,0.97)', borderRight: '1px solid rgba(255,255,255,0.07)' }}>
+        style={{ background: 'rgba(232,227,219,0.97)', borderRight: '1px solid #ddd8cf' }}>
 
         {/* Search panel — collapses after search */}
         {showSearch ? (
-          <div className="p-4 border-b border-slate-800">
-            <h2 className="text-white font-bold text-sm mb-3 tracking-wide">🔍 Find Expansion Locations</h2>
+          <div className="p-4" style={{ borderBottom: '1px solid #ddd8cf' }}>
+            <h2 className="font-bold text-sm mb-3 tracking-wide" style={{ color: '#1a2e12' }}>🔍 Find Expansion Locations</h2>
 
             <div className="mb-2">
               <select value={businessType} onChange={(e) => { setBusinessType(e.target.value); setSearchError(''); }}
-                className="w-full bg-slate-800 border border-slate-700 text-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-green-500 transition">
+                className="w-full rounded-lg px-3 py-2 text-xs focus:outline-none transition"
+                style={{ background: '#fff', border: '1px solid #ddd8cf', color: '#1a2e12' }}>
                 <option value="" disabled>Business type...</option>
                 <option>Retail Store</option>
                 <option>Café / Coffee Shop</option>
@@ -498,44 +499,49 @@ export default function ExpansionMap() {
             <div className="mb-2">
               <input type="text" value={location} onChange={(e) => { setLocation(e.target.value); setSearchError(''); }}
                 placeholder="Target city or region..."
-                className="w-full bg-slate-800 border border-slate-700 text-slate-200 placeholder-slate-500 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-green-500 transition" />
+                className="w-full rounded-lg px-3 py-2 text-xs focus:outline-none transition"
+                style={{ background: '#fff', border: '1px solid #ddd8cf', color: '#1a2e12' }} />
             </div>
 
             <div className="mb-2 flex gap-2">
               <div className="relative flex-1">
-                <span className="absolute left-3 top-2 text-slate-400 text-xs">$</span>
+                <span className="absolute left-3 top-2 text-xs" style={{ color: '#3e6b2a' }}>$</span>
                 <input type="number" value={budget || ''} onChange={(e) => setBudget(e.target.value)}
                   placeholder="Max rent/mo"
-                  className="w-full bg-slate-800 border border-slate-700 text-slate-200 placeholder-slate-500 rounded-lg pl-6 pr-2 py-2 text-xs focus:outline-none focus:border-green-500 transition" />
+                  className="w-full rounded-lg pl-6 pr-2 py-2 text-xs focus:outline-none transition"
+                  style={{ background: '#fff', border: '1px solid #ddd8cf', color: '#1a2e12' }} />
               </div>
               <button onClick={handleAutoFill}
-                className="px-2 py-2 rounded-lg border border-blue-500/50 bg-blue-500/10 text-blue-400 text-xs hover:bg-blue-500/20 transition whitespace-nowrap">
+                className="px-2 py-2 rounded-lg text-xs transition whitespace-nowrap"
+                style={{ border: '1px solid #ddd8cf', background: '#f0f7ee', color: '#1a2e12' }}>
                 ⚡ Auto
               </button>
             </div>
-            {autoFilled && <p className="text-xs text-blue-400 mb-1 animate-pulse">✓ Filled from Financial Sandbox</p>}
-            {searchError && <p className="text-xs text-red-400 mb-1">{searchError}</p>}
+            {autoFilled && <p className="text-xs mb-1 animate-pulse" style={{ color: '#3d8b24' }}>✓ Filled from Financial Sandbox</p>}
+            {searchError && <p className="text-xs text-red-600 mb-1">{searchError}</p>}
 
             <button onClick={handleSearch} disabled={isSearching}
-              className="w-full py-2 rounded-lg bg-green-500 hover:bg-green-400 text-slate-900 font-bold text-xs transition disabled:opacity-50 shadow-lg shadow-green-500/20">
+              className="w-full py-2 rounded-lg font-bold text-xs transition disabled:opacity-50"
+              style={{ background: '#1a2e12', color: '#fff' }}>
               {isSearching ? 'Searching...' : '🚀 Find Best Locations'}
             </button>
           </div>
         ) : (
-          <div className="p-3 border-b border-slate-800 flex items-center justify-between">
+          <div className="p-3 flex items-center justify-between" style={{ borderBottom: '1px solid #ddd8cf' }}>
             <div>
-              <div className="text-white text-xs font-semibold">{businessType || 'All types'} · {location || 'Waterloo'}</div>
-              <div className="text-slate-400 text-xs mt-0.5">{recommendations.length} locations found</div>
+              <div className="text-xs font-semibold" style={{ color: '#1a2e12' }}>{businessType || 'All types'} · {location || 'Waterloo'}</div>
+              <div className="text-xs mt-0.5" style={{ color: '#3e6b2a' }}>{recommendations.length} locations found</div>
             </div>
             <button onClick={() => setShowSearch(true)}
-              className="text-xs text-slate-400 hover:text-white border border-slate-700 rounded px-2 py-1 transition">
+              className="text-xs rounded px-2 py-1 transition"
+              style={{ color: '#3e6b2a', border: '1px solid #ddd8cf' }}>
               Edit
             </button>
           </div>
         )}
 
         {/* Location cards list */}
-        <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#334155 transparent' }}>
+        <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ddd8cf transparent' }}>
           {recommendations
             .sort((a, b) => b.opportunity_score - a.opportunity_score)
             .map((rec, idx) => {
@@ -549,17 +555,17 @@ export default function ExpansionMap() {
                     padding: '12px 14px',
                     borderBottom: '1px solid rgba(255,255,255,0.05)',
                     cursor: 'pointer',
-                    background: isActive ? 'rgba(34,197,94,0.08)' : 'transparent',
-                    borderLeft: isActive ? '3px solid #22c55e' : '3px solid transparent',
+                    background: isActive ? 'rgba(61,139,36,0.08)' : 'transparent',
+                    borderLeft: isActive ? '3px solid #3d8b24' : '3px solid transparent',
                     transition: 'all 0.15s',
                   }}>
 
                   {/* Row 1: rank + name + score badge */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <span style={{ fontSize: 10, color: '#475569', fontFamily: 'monospace', minWidth: 14 }}>
+                    <span style={{ fontSize: 10, color: '#3e6b2a', fontFamily: 'monospace', minWidth: 14 }}>
                       {idx + 1}
                     </span>
-                    <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: isActive ? '#4ade80' : '#f1f5f9' }}>
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: isActive ? '#3d8b24' : '#1a2e12' }}>
                       {rec.name}
                     </span>
                     <span style={{
@@ -573,29 +579,29 @@ export default function ExpansionMap() {
                   </div>
 
                   {/* Row 2: address */}
-                  <div style={{ fontSize: 11, color: '#475569', marginBottom: 8, paddingLeft: 22 }}>
+                  <div style={{ fontSize: 11, color: '#3e6b2a', marginBottom: 8, paddingLeft: 22 }}>
                     {rec.address}
                   </div>
 
                   {/* Row 3: stats */}
                   <div style={{ display: 'flex', gap: 10, paddingLeft: 22 }}>
-                    <div style={{ fontSize: 11, color: '#94a3b8' }}>
-                      🏠 <span style={{ color: '#cbd5e1' }}>${rec.estimated_rent.toLocaleString()}/mo</span>
+                    <div style={{ fontSize: 11, color: '#3e6b2a' }}>
+                      🏠 <span style={{ color: '#1a2e12' }}>${rec.estimated_rent.toLocaleString()}/mo</span>
                     </div>
-                    <div style={{ fontSize: 11, color: '#94a3b8' }}>
-                      📈 <span style={{ color: '#cbd5e1' }}>{(rec.projected_profit_margin * 100).toFixed(0)}% margin</span>
+                    <div style={{ fontSize: 11, color: '#3e6b2a' }}>
+                      📈 <span style={{ color: '#1a2e12' }}>{(rec.projected_profit_margin * 100).toFixed(0)}% margin</span>
                     </div>
                   </div>
 
                   {/* Row 4: foot traffic bar */}
                   <div style={{ paddingLeft: 22, marginTop: 8 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                      <span style={{ fontSize: 10, color: '#475569' }}>🚶 Foot traffic · {HOURS[currentHour]}</span>
+                      <span style={{ fontSize: 10, color: '#3e6b2a' }}>🚶 Foot traffic · {HOURS[currentHour]}</span>
                       <span style={{ fontSize: 10, color: getFootColor(busyness), fontWeight: 600 }}>
                         {getTrafficLabel(busyness)}
                       </span>
                     </div>
-                    <div style={{ height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ height: 4, background: '#ddd8cf', borderRadius: 4, overflow: 'hidden' }}>
                       <div style={{
                         height: '100%', width: `${busyness}%`,
                         background: getFootColor(busyness),
@@ -606,7 +612,7 @@ export default function ExpansionMap() {
 
                   {/* Expand hint */}
                   {isActive && (
-                    <div style={{ paddingLeft: 22, marginTop: 8, fontSize: 10, color: '#22c55e', opacity: 0.7 }}>
+                    <div style={{ paddingLeft: 22, marginTop: 8, fontSize: 10, color: '#3d8b24', opacity: 0.7 }}>
                       ↑ Viewing on map · click again to deselect
                     </div>
                   )}
@@ -616,22 +622,22 @@ export default function ExpansionMap() {
         </div>
 
         {/* Foot traffic heatmap toggle at bottom of sidebar */}
-        <div style={{ padding: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ padding: '10px 14px', borderTop: '1px solid #ddd8cf' }}>
           <button onClick={() => setHeatmapVisible((prev) => !prev)}
             style={{
               width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '8px 12px', borderRadius: 8,
-              background: heatmapVisible ? 'rgba(20,184,166,0.12)' : 'rgba(255,255,255,0.04)',
-              border: heatmapVisible ? '1px solid rgba(20,184,166,0.35)' : '1px solid rgba(255,255,255,0.08)',
+              background: heatmapVisible ? '#f0f7ee' : '#faf8f4',
+              border: heatmapVisible ? '1px solid #3d8b24' : '1px solid #ddd8cf',
               cursor: 'pointer', transition: 'all 0.2s',
             }}>
-            <span style={{ fontSize: 12, color: heatmapVisible ? '#14b8a6' : '#475569', fontWeight: 600 }}>
+            <span style={{ fontSize: 12, color: heatmapVisible ? '#1a2e12' : '#3e6b2a', fontWeight: 600 }}>
               🌡 Foot Traffic Heatmap
             </span>
             <span style={{
               fontSize: 10, padding: '2px 8px', borderRadius: 10, fontWeight: 700,
-              background: heatmapVisible ? 'rgba(20,184,166,0.2)' : 'rgba(255,255,255,0.06)',
-              color: heatmapVisible ? '#14b8a6' : '#475569',
+              background: heatmapVisible ? '#dcefd8' : '#f3f0eb',
+              color: heatmapVisible ? '#3d8b24' : '#3e6b2a',
             }}>
               {heatmapVisible ? 'ON' : 'OFF'}
             </span>
@@ -642,20 +648,20 @@ export default function ExpansionMap() {
       {/* ── Timeline — bottom center (accounts for sidebar) ── */}
       <div style={{
         position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-20%)',
-        zIndex: 10, background: 'rgba(10,14,28,0.95)',
-        border: '1px solid rgba(255,255,255,0.07)',
+        zIndex: 10, background: 'rgba(232,227,219,0.97)',
+        border: '1px solid #ddd8cf',
         borderRadius: 10, padding: '10px 14px',
         backdropFilter: 'blur(8px)', minWidth: 520,
       }} className="pointer-events-auto">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <div style={{ fontSize: 9, color: '#14b8a6', letterSpacing: '0.18em', fontFamily: 'monospace' }}>
+          <div style={{ fontSize: 9, color: '#3d8b24', letterSpacing: '0.18em', fontFamily: 'monospace' }}>
             FOOT TRAFFIC · {HOURS[currentHour]}{currentHour === new Date().getHours() ? ' · NOW' : ' · FORECAST'}
           </div>
           <button onClick={() => setIsPlaying(!isPlaying)} style={{
-            background: isPlaying ? 'rgba(255,80,80,0.15)' : 'rgba(20,184,166,0.12)',
-            border: isPlaying ? '1px solid rgba(255,80,80,0.4)' : '1px solid rgba(20,184,166,0.35)',
+            background: isPlaying ? '#fff0f0' : '#f0f7ee',
+            border: isPlaying ? '1px solid #fca5a5' : '1px solid #3d8b24',
             borderRadius: 4, padding: '3px 10px',
-            color: isPlaying ? '#ff5050' : '#14b8a6',
+            color: isPlaying ? '#dc2626' : '#3d8b24',
             fontSize: 10, cursor: 'pointer', fontFamily: 'monospace',
           }}>
             {isPlaying ? '⏹ STOP' : '▶ PLAY'}
@@ -673,9 +679,9 @@ export default function ExpansionMap() {
                 style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}>
                 <div style={{
                   width: 17, height: 36,
-                  background: 'rgba(255,255,255,0.04)',
+                  background: '#f3f0eb',
                   borderRadius: 3, overflow: 'hidden',
-                  border: isSelected ? `1px solid ${color}` : isNow ? '1px solid #4a9eff' : '1px solid transparent',
+                  border: isSelected ? `1px solid ${color}` : isNow ? '1px solid #3d8b24' : '1px solid #ddd8cf',
                   position: 'relative',
                 }}>
                   <div style={{
@@ -687,12 +693,12 @@ export default function ExpansionMap() {
                 </div>
                 <div style={{
                   fontSize: 7, marginTop: 2, fontFamily: 'monospace',
-                  color: isSelected ? 'white' : isNow ? '#4a9eff' : 'rgba(255,255,255,0.2)',
+                  color: isSelected ? '#1a2e12' : isNow ? '#3d8b24' : '#9ca3af',
                   fontWeight: isSelected || isNow ? 'bold' : 'normal',
                 }}>
                   {i % 3 === 0 ? h : ''}
                 </div>
-                {isNow && <div style={{ width: 3, height: 3, borderRadius: '50%', background: '#4a9eff', marginTop: 1 }} />}
+                {isNow && <div style={{ width: 3, height: 3, borderRadius: '50%', background: '#3d8b24', marginTop: 1 }} />}
               </div>
             );
           })}

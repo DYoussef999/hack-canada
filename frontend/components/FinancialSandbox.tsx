@@ -72,7 +72,7 @@ function classifyEdge(
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const SYNC_DEBOUNCE_MS  = 1500;
-const CANVAS_STORAGE_KEY = 'compass_canvas_v3'; // v3 = Quotua + group-port refactor
+const CANVAS_STORAGE_KEY = 'ploutos_canvas_v3';
 
 const nodeTypes: NodeTypes = {
   source:  SourceNode,
@@ -415,7 +415,7 @@ export default function FinancialSandbox() {
   );
 
   return (
-    <div className="flex h-full bg-slate-950 relative">
+    <div className="flex h-full relative" style={{ background: '#e5e0d8' }}>
       <Sidebar onImportClick={() => setShowImport(true)} />
 
       <div className="flex-1 h-full" onDrop={onDrop} onDragOver={onDragOver}>
@@ -434,12 +434,12 @@ export default function FinancialSandbox() {
           fitViewOptions={{ padding: 0.25 }}
           deleteKeyCode="Backspace"
         >
-          <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#1e293b" />
-          <Controls className="!bg-slate-900 !border-slate-800 [&>button]:!bg-slate-900 [&>button]:!border-slate-700 [&>button]:!text-slate-400" />
+          <Background variant={BackgroundVariant.Dots} gap={20} size={1.5} color="#a8a096" />
+          <Controls className="!bg-white !border-[var(--forest-rim)] [&>button]:!bg-white [&>button]:!border-[var(--forest-rim)] [&>button]:!text-[var(--moss)]" />
           <MiniMap
             nodeColor={miniMapColor}
-            className="!bg-slate-900 !border !border-slate-800"
-            maskColor="rgba(2,6,23,0.7)"
+            className="!bg-white !border !border-[var(--forest-rim)]"
+            maskColor="rgba(250,248,244,0.7)"
           />
         </ReactFlow>
       </div>

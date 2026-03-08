@@ -39,14 +39,7 @@ export default function Navbar() {
               fontSize: '20px', fontWeight: '700',
               color: 'var(--forest)', letterSpacing: '-0.02em',
             }}>
-              Compass
-            </span>
-            <span style={{
-              fontFamily: "'Playfair Display', serif",
-              fontSize: '20px', fontWeight: '700',
-              color: 'var(--sage)',
-            }}>
-              AI
+              Ploutos
             </span>
           </Link>
 

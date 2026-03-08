@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
  */
 const FinancialSandbox = dynamic(
   () => import('@/components/FinancialSandbox'),
-  { ssr: false, loading: () => <div className="flex h-full items-center justify-center bg-zinc-950 text-zinc-500 text-sm">Loading canvas…</div> }
+  { ssr: false, loading: () => <div className="flex h-full items-center justify-center text-sm" style={{ background: 'var(--cream)', color: 'var(--moss)' }}>Loading canvas…</div> }
 );
 
 /**
