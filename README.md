@@ -1,56 +1,88 @@
-# Compass AI (LaunchPad)
+# Compass AI
 
 **Visual Financial Sandbox for Canadian SMBs.** Built for Hack Canada 2026.
 
-Compass AI helps small business owners visualize their financial health through a React Flow canvas and receive real-time expansion strategy grounded in actual Canadian economic and inventory data.
-
-## 🧠 AI Architecture: The Two-Agent RAG System
-
-Compass AI utilizes a multi-agent RAG (Retrieval-Augmented Generation) pattern to ensure AI insights are grounded in your specific business data and real-time market conditions.
-
-### 1. The Accountant Agent (Financial Guardrails)
-- **Role:** Analyzes the React Flow canvas (Revenue vs. Expense nodes) and POS inventory.
-- **Process:** Ingests the canvas JSON + **Square Sandbox Catalog** → calculates Burn Rate, Profit Margin, and Runway.
-- **RAG Integration:** Cross-references manual canvas revenue with actual Square product pricing to ensure projections are realistic.
-- **Memory Injection:** Persists "Financial Markers" (like `max_affordable_rent`) into **Backboard.io Assistant Memory** for cross-agent recall.
-- **Output:** Provides the "Business Health" report and score in the sidebar.
-
-### 2. The Scout Agent (Market Strategist)
-- **Role:** Provides expansion strategy and macro-risk analysis.
-- **Retrieval Phase (RAG):**
-    - **Internal Retrieval:** Recalls financial guardrails (margins, rent ceiling) saved by the Accountant.
-    - **External Retrieval:** Fetches real-time "Briefings" from:
-        - **Bank of Canada (Valet API):** Latest overnight rates, FX rates (`FXUSDCAD`), and CPI.
-        - **FRED (St. Louis Fed):** Canadian inflation cross-references.
-        - **Statistics Canada:** 2021 Census data for demographics and income levels per city.
-- **Reasoning:** Evaluates expansion readiness. If BoC rates are high (>4.5%), it automatically applies a **15% financing penalty** to the expansion strategy.
-- **Status:** neighborhood-level location scoring is currently "pending merge"—the Scout currently provides high-level strategy and macro-risk flags.
-
-### 3. Gemini Intelligence Layer
-- **Model:** Powered by **Gemini 3.1 Flash Lite Preview** for high-quota, low-latency analysis.
-- **Digestion:** All external API data passes through a **Digestor** utility to ensure the agent receives clean, structured economic briefings rather than noisy raw JSON.
+Compass AI helps small business owners visualize their financial health on a drag-and-drop React Flow canvas and receive expansion strategy grounded in real Canadian economic data.
 
 ---
 
-## 🚀 Getting Started
+## Architecture
 
-### 1. Setup Backend
+### Two Parallel Backend Layers
+
+**Layer 1 — Backboard.io** (`backend/agents.py`)
+Three persistent assistants: `Compass-Accountant`, `Compass-Scout`, `Compass-Ingestor`. Session state is held in-memory (one accountant + one scout thread per session). The Scout runs a tool-call loop fetching market data before synthesizing an expansion recommendation.
+
+**Layer 2 — Gemini + Real Canadian APIs** (`backend/gemini_agents/`, `backend/routers/`, `backend/services/`)
+All external API responses pass through `backend/utils/digest.py` before entering any agent prompt — agents never receive raw JSON.
+
+| Endpoint | Agent | Purpose |
+|---|---|---|
+| `POST /sync` | Gemini Accountant | Financial health report from canvas state |
+| `POST /optimize` | Gemini Scout | Ranked expansion locations with viability scores |
+| `GET /macro` | — | Cached BoC + FRED macro briefing (6hr TTL) |
+| `GET /health` | — | Pings all 6 external APIs |
+
+### Data Sources
+
+| Service | Data |
+|---|---|
+| Bank of Canada Valet API | Overnight rate, CAD/USD, CPI |
+| FRED (St. Louis Fed) | Canada inflation cross-reference |
+| Statistics Canada | 2021 Census demographics per city (cached 24hr) |
+| Square Sandbox | POS catalog for inventory cross-reference |
+| UPC Item DB | Product lookup (100/day trial limit) |
+
+### Viability Score Formula (Scout Agent)
+```
+Ve = (P_rev × D_demographic) / ((C_rent × max(S_competition, 0.01)) + O_fixed) × 40
+```
+Capped 0–100. Applies a 15% financing penalty when BoC overnight rate > 4.5%.
+
+### Frontend Data Flow
+```
+FinancialSandbox (canvas state)
+  ├── useCanvasFinancials(nodes, edges)   → local math, no API
+  ├── useSession()                        → POST /session/start
+  ├── debounce 1500ms on node change →
+  │     Promise.allSettled([
+  │       syncCanvas()       → POST /sandbox/sync  (Backboard)
+  │       syncCanvasGemini() → POST /sync           (Gemini)
+  │     ])
+  └── SummarySidebar
+        ├── getMacro() on mount → GET /macro
+        ├── FinancialsTab    (local calc)
+        ├── InsightsTab      (Gemini preferred, Backboard fallback)
+        └── OptimizationTab  → POST /optimize
+```
+
+---
+
+## Getting Started
+
+### Backend
 ```bash
 cd backend
 pip install -r requirements.txt
-# Ensure GEMINI_API_KEY, BACKBOARD_API_KEY, and SQUARE_SANDBOX_ACCESS_TOKEN are in .env
+cp .env.example .env   # fill in API keys
 uvicorn main:app --reload --port 8000
+curl http://localhost:8000/health   # verify all APIs live
 ```
 
-### 2. Setup Frontend
+### Frontend
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-Visit `http://localhost:3000/sandbox` to start building your business model.
 
-## 🛠️ Tech Stack
-- **Frontend:** Next.js (TypeScript), React Flow, Tailwind CSS, Lucide.
-- **Backend:** FastAPI (Python), Google GenAI SDK, Backboard.io.
-- **Data Sources:** Bank of Canada Valet, FRED, StatCan 2021 Census, Square Sandbox.
+Visit `http://localhost:3000/sandbox`.
+
+---
+
+## Tech Stack
+
+- **Frontend:** Next.js 14 (TypeScript), React Flow, Tailwind CSS
+- **Backend:** FastAPI, Google GenAI SDK (`google-genai`), Backboard.io
+- **Data:** Bank of Canada Valet, FRED, Statistics Canada, Square Sandbox, UPC Item DB
+- **Infra:** In-memory TTL cache, tenacity retry (3× with exponential backoff on 429s)
