@@ -4,9 +4,9 @@ import { usePathname } from "next/navigation";
 import { Save, Compass } from "lucide-react";
 
 const navLinks = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/sandbox",   label: "Financial Canvas" },
-  { href: "/optimizer", label: "Optimizer" },
+  { href: "/dashboard",  label: "Dashboard" },
+  { href: "/sandbox",    label: "Financial Canvas" },
+  { href: "/expansion",  label: "Expansion Map" },
 ];
 
 export default function Navbar() {

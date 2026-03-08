@@ -121,6 +121,16 @@ class Tools:
         cpi = boc_data.get("cpi") or fred_cpi
         cad_usd = boc_data.get("cad_usd")
 
+        # Both live APIs unreachable — use seeded fallback so UI never shows dashes.
+        # Values reflect BoC easing cycle (rate cuts through 2024-2025).
+        if overnight_rate is None:
+            overnight_rate = 2.75
+            log.warning("macro_trends  BoC unreachable — using seeded fallback rate=%.2f", overnight_rate)
+        if cpi is None:
+            cpi = 2.1
+        if cad_usd is None:
+            cad_usd = 0.73
+
         trend, summary = build_macro_summary(overnight_rate, cpi)
 
         briefing = MacroTrendsBriefing(

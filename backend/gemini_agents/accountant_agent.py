@@ -115,13 +115,32 @@ async def analyze(profile: FinancialProfile) -> FinancialHealthReport:
     """
     client = _client()
 
-    # ── Phase 1: Retrieve Square context ──────────────────────────────────────
+    # ── Phase 1: Pre-compute exact financials in Python (LLMs can't do arithmetic) ──
+    monthly_revenue  = sum(float(n.data.get("value", 0)) for n in profile.nodes if n.type == "source")
+    monthly_expenses = sum(float(n.data.get("value", 0)) for n in profile.nodes if n.type == "expense")
+    net_profit       = monthly_revenue - monthly_expenses
+    profit_margin    = round((net_profit / monthly_revenue * 100), 1) if monthly_revenue > 0 else 0.0
+    break_even       = monthly_expenses
+    max_rent         = round(monthly_revenue * 0.10, 2)
+
+    computed_facts = (
+        f"\n=== PRE-COMPUTED FINANCIALS (use these exact numbers — do not recalculate) ===\n"
+        f"monthly_revenue:    ${monthly_revenue:,.2f}\n"
+        f"monthly_expenses:   ${monthly_expenses:,.2f}\n"
+        f"net_profit:         ${net_profit:,.2f}\n"
+        f"profit_margin_pct:  {profit_margin:.1f}%\n"
+        f"break_even_revenue: ${break_even:,.2f}\n"
+        f"max_affordable_rent:${max_rent:,.2f}\n"
+    )
+
+    # ── Phase 2: Retrieve Square context ──────────────────────────────────────
     square_briefing = await tools.get_square_catalog()
     square_json = square_briefing.model_dump_json(indent=2)
 
     prompt = (
         f"=== SQUARE POS CONTEXT ===\n{square_json}\n\n"
-        f"=== CANVAS PROFILE ===\n{profile.model_dump_json(indent=2)}\n\n"
+        f"=== CANVAS PROFILE ===\n{profile.model_dump_json(indent=2)}\n"
+        f"{computed_facts}\n"
         "Analyze the financial health of this business based on the canvas and Square data."
     )
 
@@ -131,6 +150,15 @@ async def analyze(profile: FinancialProfile) -> FinancialHealthReport:
             raw_text = await _generate(client, full_prompt)
             data = json.loads(raw_text)
             report = FinancialHealthReport(**data)
+
+            # Override arithmetic fields with exact Python values — Gemini can drift
+            report.monthly_revenue   = monthly_revenue
+            report.monthly_expenses  = monthly_expenses
+            report.net_profit        = net_profit
+            report.profit_margin_pct = profit_margin
+            report.break_even_revenue = break_even
+            report.max_affordable_rent = max_rent
+
             log.info(
                 "accountant  health_score=%d  margin=%.1f%%  attempt=%d",
                 report.health_score, report.profit_margin_pct, attempt + 1,

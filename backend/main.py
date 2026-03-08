@@ -26,7 +26,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 import agents  # existing Backboard agents
-from routes import dashboard, optimizer
+from routes import dashboard, optimizer, locations as locations_route
 from routes import sandbox as legacy_sandbox
 
 # New Gemini intelligence layer routers
@@ -82,6 +82,9 @@ app.add_middleware(
 # ── New Gemini intelligence routes ────────────────────────────────────────────
 app.include_router(sync_router.router,     tags=["Accountant"])
 app.include_router(optimize_router.router, tags=["Scout"])
+
+# ── Location optimizer (map team) ────────────────────────────────────────────
+app.include_router(locations_route.router, tags=["Locations"])
 
 # ── Legacy Backboard routes ───────────────────────────────────────────────────
 app.include_router(legacy_sandbox.router, prefix="/sandbox",   tags=["Legacy"])
