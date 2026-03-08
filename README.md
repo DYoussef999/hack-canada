@@ -1,4 +1,4 @@
-# Compass AI
+# Plutos
 
 **Visual Financial Sandbox for Canadian SMBs.** Built for Hack Canada 2026.
 
