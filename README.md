@@ -2,7 +2,7 @@
 
 **A visual financial sandbox for Canadian small businesses.**
 
-Built at [Hack Canada 2026](https://www.hackcanda.org/).
+Built at [Hack Canada 2026](https://hackcanada.org/).
 
 ![Status](https://img.shields.io/badge/status-active-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
